@@ -5,10 +5,10 @@ import (
 	"os"
 	"time"
 
-	"myapp/internal/auth"
-	"myapp/internal/crypto"
-	"myapp/internal/fal"
-	"myapp/internal/handlers"
+	"generatio-pb/internal/auth"
+	"generatio-pb/internal/crypto"
+	"generatio-pb/internal/fal"
+	"generatio-pb/internal/handlers"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
@@ -82,6 +82,10 @@ func main() {
 		// Register example routes for testing
 		handlers.RegisterExampleRoutes(se, app, sessionStore, encService, falClient)
 		log.Println("✓ Example API routes registered")
+
+		// Register production API routes
+		handlers.RegisterRoutes(se, app, sessionStore, encService, falClient)
+		log.Println("✓ Production API routes registered")
 
 		// Serve static files from the provided public dir (if exists)
 		se.Router.GET("/{path...}", apis.Static(os.DirFS("./pb_public"), false))

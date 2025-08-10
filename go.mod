@@ -1,4 +1,4 @@
-module myapp
+module generatio-pb
 
 go 1.23.0
 

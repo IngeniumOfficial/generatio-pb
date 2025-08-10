@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"myapp/internal/fal"
-	"myapp/internal/models"
+	"generatio-pb/internal/fal"
+	"generatio-pb/internal/models"
 )
 
 // ValidatePrompt validates and sanitizes a generation prompt

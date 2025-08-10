@@ -1,106 +1,96 @@
 # Generatio PocketBase Extension
 
-A comprehensive PocketBase extension for the Generatio AI image generation application, featuring zero-knowledge encryption, secure session management, and FAL AI integration.
+A PocketBase extension for AI image generation using FAL AI, with encrypted token storage and session management.
 
-## Features
+## Architecture
 
-### 🔐 Security
-
-- **Zero-knowledge encryption**: AES-256-GCM with PBKDF2 key derivation for FAL AI tokens
-- **Pure in-memory sessions**: No disk persistence for maximum security
-- **Multi-layer authentication**: PocketBase JWT + session validation + resource ownership
-- **Comprehensive input validation**: Sanitization and validation utilities
-
-### 🎨 AI Integration
-
-- **FAL AI client**: Queue/polling system for async image generation
-- **Multiple models**: Support for flux/schnell, hidream variants
-- **Cost tracking**: Precise financial monitoring and spending statistics
-- **Parameter validation**: Model-specific parameter validation
-
-### 📊 Data Management
-
-- **Extended user collections**: Encrypted token storage, preferences, financial data
-- **Generated images**: Full metadata and cost tracking
-- **Collections management**: User-organized image collections
-- **Model preferences**: Per-model parameter presets
-
-## Quick Start
-
-### 1. Build and Run
-
-```bash
-# Build the application
-go build
-
-# Run the server
-./myapp serve --http="127.0.0.1:8090"
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   PocketBase    │    │   Encryption    │    │   FAL Client    │
+│   Database      │◄──►│   Service       │◄──►│   API Calls     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         ▲                       ▲                       ▲
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Session Store (In-Memory)                    │
+└─────────────────────────────────────────────────────────────────┘
+                               ▲
+                               │
+                               ▼
+                    ┌─────────────────┐
+                    │   HTTP APIs     │
+                    └─────────────────┘
 ```
 
-### 2. Setup Database Collections
+### Core Components
 
-Access the PocketBase admin interface at `http://127.0.0.1:8090/_/` and create the following collections:
+- **PocketBase Database**: User data, generated images, preferences, collections
+- **Encryption Service**: AES-256-GCM with PBKDF2 for FAL token security
+- **Session Store**: In-memory session management with automatic cleanup
+- **FAL Client**: Async image generation with queue/polling system
 
-#### Users Collection (extend existing)
+## Installation
 
-Add these fields to the existing users collection:
+```bash
+go build -o generatio-pb
+./generatio-pb serve --http="127.0.0.1:8090"
+```
+
+## Database Setup
+
+Access PocketBase admin at `http://127.0.0.1:8090/_/` and create these collections:
+
+### Users Collection (extend existing)
+
+Add fields:
 
 - `fal_token` (text) - Encrypted FAL AI token
-- `salt` (text) - Encryption salt for the token
-- `financial_data` (json) - Spending statistics and limits
+- `salt` (text) - Encryption salt
+- `financial_data` (json) - Spending tracking
 
-#### Generated Images Collection
+### Generated Images Collection
 
 ```json
 {
   "name": "generated_images",
   "fields": [
-    {
-      "name": "user_id",
-      "type": "relation",
-      "options": { "collectionId": "users" }
-    },
-    { "name": "model_name", "type": "text" },
-    { "name": "prompt", "type": "text" },
-    { "name": "image_url", "type": "url" },
+    { "name": "user_id", "type": "relation", "required": true },
+    { "name": "model_name", "type": "text", "required": true },
+    { "name": "prompt", "type": "text", "required": true },
+    { "name": "image_url", "type": "url", "required": true },
     { "name": "parameters", "type": "json" },
     { "name": "cost_usd", "type": "number" },
     { "name": "generation_time_ms", "type": "number" },
-    { "name": "fal_request_id", "type": "text" }
+    { "name": "fal_request_id", "type": "text" },
+    { "name": "collection_id", "type": "text" }
   ]
 }
 ```
 
-#### Model Preferences Collection
+### Model Preferences Collection
 
 ```json
 {
   "name": "model_preferences",
   "fields": [
-    {
-      "name": "user_id",
-      "type": "relation",
-      "options": { "collectionId": "users" }
-    },
-    { "name": "model_name", "type": "text" },
-    { "name": "parameters", "type": "json" }
+    { "name": "user_id", "type": "relation", "required": true },
+    { "name": "model_name", "type": "text", "required": true },
+    { "name": "parameters", "type": "json", "required": true }
   ]
 }
 ```
 
-#### Collections Collection
+### Collections Collection
 
 ```json
 {
   "name": "collections",
   "fields": [
-    {
-      "name": "user_id",
-      "type": "relation",
-      "options": { "collectionId": "users" }
-    },
-    { "name": "name", "type": "text" },
+    { "name": "user_id", "type": "relation", "required": true },
+    { "name": "name", "type": "text", "required": true },
     { "name": "description", "type": "text" },
+    { "name": "parent_id", "type": "text" },
     { "name": "image_ids", "type": "json" }
   ]
 }
@@ -108,156 +98,387 @@ Add these fields to the existing users collection:
 
 ## API Endpoints
 
-### Example/Testing Endpoints
+All endpoints require PocketBase authentication unless noted.
 
-#### Health Check
+### Testing Endpoints
 
-```bash
-GET /api/custom/status
-```
+#### `GET /api/custom/status`
 
-Returns system status, active sessions, and available models.
+Returns system status and available models.
 
-#### Test Encryption
+**Response:**
 
-```bash
-POST /api/custom/test/encryption
-Content-Type: application/json
-
+```json
 {
-  "text": "Hello World",
-  "password": "test123"
+  "status": "ok",
+  "services": {
+    "encryption": "AES-256-GCM with PBKDF2",
+    "sessions": { "active": 0, "total": 0 },
+    "fal_models": 3
+  },
+  "available_models": [
+    "flux/schnell",
+    "hidream/hidream-i1-dev",
+    "hidream/hidream-i1-fast"
+  ]
 }
 ```
 
-Tests the encryption/decryption functionality.
+#### `POST /api/custom/test/encryption`
 
-### Production Endpoints (Planned)
+Tests encryption/decryption functionality.
 
-#### Token Management
+**Request:**
 
-- `POST /api/custom/tokens/setup` - Setup encrypted FAL AI token
-- `POST /api/custom/tokens/verify` - Verify token validity
+```json
+{
+  "text": "test data",
+  "password": "password123"
+}
+```
 
-#### Session Management
+### Token Management
 
-- `POST /api/custom/auth/create-session` - Create secure session
-- `DELETE /api/custom/auth/session` - Delete session
+#### `POST /api/custom/tokens/setup`
 
-#### Image Generation
+Encrypt and store FAL AI token.
 
-- `POST /api/custom/generate/image` - Generate image with cost tracking
-- `GET /api/custom/generate/models` - Get available models
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
 
-#### Financial Tracking
+**Request:**
 
-- `GET /api/custom/financial/stats` - Get spending statistics
+```json
+{
+  "fal_token": "fal-ai-token-here",
+  "password": "encryption-password"
+}
+```
 
-#### User Preferences
+**Response:**
 
-- `GET /api/custom/preferences/{model_name}` - Get model preferences
-- `POST /api/custom/preferences/{model_name}` - Save model preferences
+```json
+{
+  "success": true,
+  "message": "FAL token setup successfully"
+}
+```
 
-#### Collections Management
+#### `POST /api/custom/tokens/verify`
 
-- `POST /api/custom/collections/create` - Create image collection
-- `GET /api/custom/collections` - List user collections
+Verify stored token accessibility.
 
-## Architecture
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
 
-### Core Components
+**Request:**
 
-1. **Encryption Service** (`internal/crypto/`)
+```json
+{
+  "password": "encryption-password"
+}
+```
 
-   - AES-256-GCM encryption with PBKDF2 key derivation
-   - 100,000 PBKDF2 iterations for security
-   - Cryptographically secure random salt generation
+**Response:**
 
-2. **Session Management** (`internal/auth/`)
+```json
+{
+  "has_token": true,
+  "can_decrypt": true
+}
+```
 
-   - Pure in-memory session store
-   - Automatic cleanup of expired sessions
-   - Thread-safe operations with mutex protection
+### Session Management
 
-3. **FAL AI Integration** (`internal/fal/`)
+#### `POST /api/custom/auth/create-session`
 
-   - Async queue/polling system
-   - Model parameter validation
-   - Cost calculation and tracking
+Create in-memory session with decrypted FAL token.
 
-4. **Validation & Error Handling** (`internal/utils/`)
-   - Comprehensive input sanitization
-   - Standardized error responses
-   - Security-focused validation rules
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
 
-### Security Model
+**Request:**
+
+```json
+{
+  "password": "encryption-password"
+}
+```
+
+**Response:**
+
+```json
+{
+  "session_id": "uuid-session-id",
+  "expires_at": "2024-01-01T12:00:00Z"
+}
+```
+
+#### `DELETE /api/custom/auth/session`
+
+Delete active session.
+
+**Headers:**
+
+- `Authorization: Bearer <pocketbase_jwt>`
+- `X-Session-ID: <session_id>`
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Session deleted successfully"
+}
+```
+
+### Image Generation
+
+#### `POST /api/custom/generate/image`
+
+Generate AI images using FAL API.
+
+**Headers:**
+
+- `Authorization: Bearer <pocketbase_jwt>`
+- `X-Session-ID: <session_id>`
+
+**Request:**
+
+```json
+{
+  "model": "flux/schnell",
+  "prompt": "A beautiful sunset over mountains",
+  "parameters": {
+    "image_size": "square_hd",
+    "num_images": 1,
+    "guidance_scale": 7.5
+  },
+  "collection_id": "optional-collection-id"
+}
+```
+
+**Response:**
+
+```json
+{
+  "images": [
+    {
+      "id": "generated-image-id",
+      "url": "https://fal.ai/generated-image.jpg",
+      "thumbnail_url": "https://fal.ai/thumb.jpg"
+    }
+  ],
+  "cost": 0.003,
+  "model": "flux/schnell"
+}
+```
+
+#### `GET /api/custom/generate/models`
+
+List available AI models and their parameters.
+
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
+
+**Response:**
+
+```json
+{
+  "flux/schnell": {
+    "name": "flux/schnell",
+    "display_name": "Flux Schnell",
+    "description": "Fast, high-quality image generation",
+    "cost_per_image": 0.003,
+    "parameters": {
+      "image_size": {
+        "type": "object",
+        "default": "square_hd",
+        "options": ["square_hd", "square", "portrait_4_3"],
+        "description": "Image size preset"
+      }
+    }
+  }
+}
+```
+
+### Financial Tracking
+
+#### `GET /api/custom/financial/stats`
+
+Get spending statistics.
+
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
+
+**Response:**
+
+```json
+{
+  "total_spent": 0.25,
+  "total_images": 83,
+  "recent_spending": 0.05,
+  "average_cost": 0.003
+}
+```
+
+### User Preferences
+
+#### `GET /api/custom/preferences/{model_name}`
+
+Get saved preferences for a model.
+
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
+
+**Response:**
+
+```json
+{
+  "model_name": "flux/schnell",
+  "has_preferences": true,
+  "preferences": {
+    "image_size": "square_hd",
+    "guidance_scale": 7.5
+  }
+}
+```
+
+#### `POST /api/custom/preferences/{model_name}`
+
+Save preferences for a model.
+
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
+
+**Request:**
+
+```json
+{
+  "preferences": {
+    "image_size": "square_hd",
+    "guidance_scale": 7.5,
+    "num_inference_steps": 4
+  }
+}
+```
+
+### Collections Management
+
+#### `POST /api/custom/collections/create`
+
+Create image collection.
+
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
+
+**Request:**
+
+```json
+{
+  "name": "My Collection",
+  "parent_id": "optional-parent-collection-id"
+}
+```
+
+**Response:**
+
+```json
+{
+  "id": "collection-id",
+  "name": "My Collection",
+  "parent_id": "parent-id",
+  "created": "2024-01-01T12:00:00Z"
+}
+```
+
+#### `GET /api/custom/collections`
+
+List user collections.
+
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
+
+**Response:**
+
+```json
+{
+  "collections": [
+    {
+      "id": "collection-id",
+      "user_id": "user-id",
+      "name": "My Collection",
+      "parent_id": "",
+      "created": "2024-01-01T12:00:00Z",
+      "updated": "2024-01-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+## Security Features
 
 - **Zero-knowledge encryption**: Server never sees plaintext FAL tokens
-- **Session isolation**: Each user session is completely isolated
-- **Memory-only sessions**: No session data persisted to disk
-- **Multi-layer auth**: PocketBase JWT + session + ownership validation
-- **Input sanitization**: All user inputs validated and sanitized
+- **AES-256-GCM encryption** with PBKDF2 key derivation (100,000 iterations)
+- **In-memory sessions**: No persistent session storage
+- **Multi-layer authentication**: PocketBase JWT + session validation
+- **Input validation**: All parameters validated against model requirements
+
+## Supported AI Models
+
+- **flux/schnell**: Fast generation, $0.003 per image
+- **hidream/hidream-i1-dev**: High quality, $0.004 per image
+- **hidream/hidream-i1-fast**: Fast quality, $0.003 per image
 
 ## Development
 
 ### Project Structure
 
 ```
-.
-├── main.go                     # Application entry point
+├── main.go                      # Application entry point
 ├── internal/
-│   ├── auth/                   # Session management
-│   │   ├── sessions.go         # Session store implementation
-│   │   └── cleanup.go          # Background cleanup service
-│   ├── crypto/                 # Encryption utilities
-│   │   └── encryption.go       # AES-256-GCM implementation
-│   ├── fal/                    # FAL AI integration
-│   │   ├── client.go           # FAL AI client
-│   │   └── models.go           # Model definitions
-│   ├── handlers/               # HTTP handlers
-│   │   └── example.go          # Example endpoints
-│   ├── models/                 # Data types
-│   │   └── types.go            # Shared types
-│   └── utils/                  # Utilities
-│       ├── validation.go       # Input validation
-│       └── errors.go           # Error handling
-├── ARCHITECTURE.md             # Detailed architecture
-├── IMPLEMENTATION_PLAN.md      # Implementation roadmap
-├── SECURITY_ANALYSIS.md        # Security analysis
-└── PROJECT_SUMMARY.md          # Project overview
-```
-
-### Building
-
-```bash
-# Install dependencies
-go mod tidy
-
-# Build
-go build
-
-# Run tests (when implemented)
-go test ./...
+│   ├── auth/
+│   │   ├── sessions.go          # Session management
+│   │   └── cleanup.go           # Background cleanup
+│   ├── crypto/
+│   │   └── encryption.go        # AES-256-GCM encryption
+│   ├── fal/
+│   │   ├── client.go            # FAL AI client
+│   │   └── models.go            # Model definitions
+│   ├── handlers/
+│   │   ├── handlers.go          # Main API handlers
+│   │   └── example.go           # Testing endpoints
+│   ├── models/
+│   │   └── types.go             # Data structures
+│   └── utils/
+│       ├── validation.go        # Input validation
+│       └── errors.go            # Error handling
+└── README.md
 ```
 
 ### Configuration
 
-The application uses PocketBase's standard configuration. Key settings:
-
-- **HTTP Address**: `127.0.0.1:8090` (default)
+- **HTTP Address**: `127.0.0.1:8090`
 - **Session Timeout**: 24 hours
 - **Cleanup Interval**: 1 hour
 - **PBKDF2 Iterations**: 100,000
 - **FAL Timeout**: 10 minutes
 
-## Security Considerations
+### Building
 
-1. **Token Storage**: FAL AI tokens are encrypted with user passwords and never stored in plaintext
-2. **Session Security**: Sessions are memory-only and automatically cleaned up
-3. **Input Validation**: All inputs are validated and sanitized
-4. **Error Handling**: Errors don't leak sensitive information
-5. **Authentication**: Multi-layer authentication ensures proper access control
+```bash
+go mod tidy
+go build -o generatio-pb
+./generatio-pb serve
+```
 
-## License
+## Error Handling
 
-This project is part of the Generatio application suite.
+All endpoints return standardized error responses:
+
+```json
+{
+  "error": "validation_error",
+  "message": "Detailed error message"
+}
+```
+
+**Error Codes:**
+
+- `validation_error`: Invalid input data
+- `authentication_error`: Missing/invalid authentication
+- `authorization_error`: Insufficient permissions
+- `not_found`: Resource not found
+- `internal_error`: Server error
+- `external_error`: FAL AI service error

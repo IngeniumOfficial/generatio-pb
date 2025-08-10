@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"myapp/internal/auth"
-	"myapp/internal/crypto"
-	"myapp/internal/fal"
+	"generatio-pb/internal/auth"
+	"generatio-pb/internal/crypto"
+	"generatio-pb/internal/fal"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"

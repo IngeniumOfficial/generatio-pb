@@ -3,7 +3,7 @@ package utils
 import (
 	"net/http"
 
-	"myapp/internal/models"
+	"generatio-pb/internal/models"
 
 	"github.com/pocketbase/pocketbase/apis"
 )

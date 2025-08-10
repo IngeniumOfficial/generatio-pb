@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"myapp/internal/models"
+	"generatio-pb/internal/models"
 
 	"github.com/google/uuid"
 )
