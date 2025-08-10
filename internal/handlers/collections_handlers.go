@@ -22,17 +22,35 @@ func (h *Handler) CreateCollection(e *core.RequestEvent) error {
 	}
 
 	// Get authenticated user
-	_, err := h.getAuthenticatedUser(e)
+	user, err := h.getAuthenticatedUser(e)
 	if err != nil {
 		return h.errorResponse(e, http.StatusUnauthorized, localmodels.ErrCodeAuth, "Authentication required")
 	}
 
-	// TODO: Create collection record in database
+	// Create folder record (collections are called folders in the schema)
+	collection, err := h.app.FindCollectionByNameOrId("folders")
+	if err != nil {
+		return h.errorResponse(e, http.StatusInternalServerError, localmodels.ErrCodeInternal, "Failed to find folders collection")
+	}
+	
+	record := core.NewRecord(collection)
+	record.Set("user_id", user.Id)
+	record.Set("name", req.Name)
+	record.Set("private", false) // Default to public
+	
+	if req.ParentID != "" {
+		record.Set("parent_id", req.ParentID)
+	}
+
+	if err := h.app.Save(record); err != nil {
+		return h.errorResponse(e, http.StatusInternalServerError, localmodels.ErrCodeInternal, "Failed to create folder")
+	}
+
 	resp := localmodels.CreateCollectionResponse{
-		ID:       "temp_" + req.Name, // Temporary ID
+		ID:       record.Id,
 		Name:     req.Name,
 		ParentID: req.ParentID,
-		Created:  time.Now(),
+		Created:  time.Now(), // Fallback until we fix timestamp access
 	}
 
 	return e.JSON(http.StatusOK, resp)
@@ -41,13 +59,39 @@ func (h *Handler) CreateCollection(e *core.RequestEvent) error {
 // GetCollections handles GET /api/custom/collections
 func (h *Handler) GetCollections(e *core.RequestEvent) error {
 	// Get authenticated user
-	_, err := h.getAuthenticatedUser(e)
+	user, err := h.getAuthenticatedUser(e)
 	if err != nil {
 		return h.errorResponse(e, http.StatusUnauthorized, localmodels.ErrCodeAuth, "Authentication required")
 	}
 
-	// TODO: Get collections from database
+	// Get all folders for user (collections are called folders in the schema)
+	records, err := h.app.FindRecordsByFilter(
+		"folders",
+		"user_id = {:user_id} && deleted_at = null",
+		"-created",
+		100,
+		0,
+		map[string]any{
+			"user_id": user.Id,
+		},
+	)
+
+	if err != nil {
+		return h.errorResponse(e, http.StatusInternalServerError, localmodels.ErrCodeInternal, "Failed to fetch folders")
+	}
+
 	var collections []localmodels.Collection
+	for _, record := range records {
+		collection := localmodels.Collection{
+			ID:       record.Id,
+			UserID:   record.GetString("user_id"),
+			Name:     record.GetString("name"),
+			ParentID: record.GetString("parent_id"),
+			Created:  time.Now(), // Fallback until we fix timestamp access
+			Updated:  time.Now(), // Fallback until we fix timestamp access
+		}
+		collections = append(collections, collection)
+	}
 
 	return e.JSON(http.StatusOK, map[string]interface{}{
 		"collections": collections,

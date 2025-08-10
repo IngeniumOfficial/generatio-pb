@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	localmodels "generatio-pb/internal/models"
@@ -42,14 +43,14 @@ func (h *Handler) TokenSetup(e *core.RequestEvent) error {
 		return h.errorResponse(e, http.StatusInternalServerError, localmodels.ErrCodeInternal, "Failed to encrypt token")
 	}
 
-	// Update user record (simplified for now)
-	user.Set("fal_token", encResult.Encrypted)
-	user.Set("salt", encResult.Salt)
+	// Store encrypted data and salt together, separated by period
+	combinedToken := encResult.Encrypted + "." + encResult.Salt
+	user.Set("fal_token", combinedToken)
 	
-	// TODO: Save record once we fix the Dao access
-	// if err := h.app.Save(user); err != nil {
-	//     return h.errorResponse(e, http.StatusInternalServerError, localmodels.ErrCodeInternal, "Failed to save user data")
-	// }
+	// Save to database
+	if err := h.app.Save(user); err != nil {
+		return h.errorResponse(e, http.StatusInternalServerError, localmodels.ErrCodeInternal, "Failed to save user data")
+	}
 
 	return e.JSON(http.StatusOK, map[string]interface{}{
 		"success": true,
@@ -74,8 +75,15 @@ func (h *Handler) TokenVerify(e *core.RequestEvent) error {
 		return h.errorResponse(e, http.StatusUnauthorized, localmodels.ErrCodeAuth, "Authentication required")
 	}
 
-	falToken := user.GetString("fal_token")
-	salt := user.GetString("salt")
+	combinedToken := user.GetString("fal_token")
+	
+	// Parse encrypted data and salt from combined token (format: "encrypted.salt")
+	parts := strings.Split(combinedToken, ".")
+	if len(parts) != 2 {
+		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Invalid token format")
+	}
+	falToken := parts[0]
+	salt := parts[1]
 	
 	resp := localmodels.VerifyTokenResponse{
 		HasToken:   falToken != "",
@@ -108,8 +116,15 @@ func (h *Handler) CreateSession(e *core.RequestEvent) error {
 		return h.errorResponse(e, http.StatusUnauthorized, localmodels.ErrCodeAuth, "Authentication required")
 	}
 
-	falToken := user.GetString("fal_token")
-	salt := user.GetString("salt")
+	combinedToken := user.GetString("fal_token")
+	
+	// Parse encrypted data and salt from combined token (format: "encrypted.salt")
+	parts := strings.Split(combinedToken, ".")
+	if len(parts) != 2 {
+		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Invalid token format")
+	}
+	falToken := parts[0]
+	salt := parts[1]
 
 	if falToken == "" || salt == "" {
 		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "FAL token not configured. Please setup token first")
