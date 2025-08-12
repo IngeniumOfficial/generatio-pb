@@ -95,7 +95,7 @@ var SupportedModels = map[string]ModelInfo{
 		Parameters: map[string]Parameter{
 			"image_size": {
 				Type:        "object",
-				Default:     "square_hd",
+				Default:     "landscape_4_3",
 				Options:     []string{"square_hd", "square", "portrait_4_3", "portrait_16_9", "landscape_4_3", "landscape_16_9"},
 				Description: "Image size as preset or custom dimensions object {width: int, height: int}",
 				Required:    false,
@@ -110,10 +110,10 @@ var SupportedModels = map[string]ModelInfo{
 			},
 			"guidance_scale": {
 				Type:        "float",
-				Default:     7.5,
+				Default:     3.5,
 				Min:         floatPtr(1.0),
 				Max:         floatPtr(20.0),
-				Description: "How closely to follow the prompt",
+				Description: "The CFG (Classifier Free Guidance) scale is a measure of how close you want the model to stick to your prompt",
 				Required:    false,
 			},
 			"num_inference_steps": {
@@ -121,13 +121,39 @@ var SupportedModels = map[string]ModelInfo{
 				Default:     4,
 				Min:         floatPtr(1),
 				Max:         floatPtr(50),
-				Description: "Number of denoising steps",
+				Description: "The number of inference steps to perform",
 				Required:    false,
 			},
 			"seed": {
 				Type:        "integer",
 				Default:     nil,
-				Description: "Random seed for reproducible results",
+				Description: "The same seed and the same prompt given to the same version of the model will output the same image every time",
+				Required:    false,
+			},
+			"sync_mode": {
+				Type:        "boolean",
+				Default:     false,
+				Description: "If set to true, the function will wait for the image to be generated and uploaded before returning the response",
+				Required:    false,
+			},
+			"enable_safety_checker": {
+				Type:        "boolean",
+				Default:     true,
+				Description: "If set to true, the safety checker will be enabled",
+				Required:    false,
+			},
+			"output_format": {
+				Type:        "string",
+				Default:     "jpeg",
+				Options:     []string{"jpeg", "png"},
+				Description: "The format of the generated image",
+				Required:    false,
+			},
+			"acceleration": {
+				Type:        "string",
+				Default:     "none",
+				Options:     []string{"none", "regular", "high"},
+				Description: "The speed of the generation. The higher the speed, the faster the generation",
 				Required:    false,
 			},
 		},
@@ -140,9 +166,15 @@ var SupportedModels = map[string]ModelInfo{
 		Parameters: map[string]Parameter{
 			"image_size": {
 				Type:        "object",
-				Default:     "square_hd",
+				Default:     nil,
 				Options:     []string{"square_hd", "square", "portrait_4_3", "portrait_16_9", "landscape_4_3", "landscape_16_9"},
 				Description: "Image size as preset or custom dimensions object {width: int, height: int}",
+				Required:    false,
+			},
+			"negative_prompt": {
+				Type:        "string",
+				Default:     "",
+				Description: "The negative prompt to use. Use it to address details that you don't want in the image",
 				Required:    false,
 			},
 			"num_images": {
@@ -153,26 +185,37 @@ var SupportedModels = map[string]ModelInfo{
 				Description: "Number of images to generate",
 				Required:    false,
 			},
-			"guidance_scale": {
-				Type:        "float",
-				Default:     7.5,
-				Min:         floatPtr(1.0),
-				Max:         floatPtr(20.0),
-				Description: "How closely to follow the prompt",
-				Required:    false,
-			},
 			"num_inference_steps": {
 				Type:        "integer",
-				Default:     20,
+				Default:     16,
 				Min:         floatPtr(10),
 				Max:         floatPtr(100),
-				Description: "Number of denoising steps",
+				Description: "The number of inference steps to perform",
 				Required:    false,
 			},
 			"seed": {
 				Type:        "integer",
 				Default:     nil,
-				Description: "Random seed for reproducible results",
+				Description: "The same seed and the same prompt given to the same version of the model will output the same image every time",
+				Required:    false,
+			},
+			"sync_mode": {
+				Type:        "boolean",
+				Default:     false,
+				Description: "If set to true, the function will wait for the image to be generated and uploaded before returning the response",
+				Required:    false,
+			},
+			"enable_safety_checker": {
+				Type:        "boolean",
+				Default:     true,
+				Description: "If set to true, the safety checker will be enabled",
+				Required:    false,
+			},
+			"output_format": {
+				Type:        "string",
+				Default:     "jpeg",
+				Options:     []string{"jpeg", "png"},
+				Description: "The format of the generated image",
 				Required:    false,
 			},
 		},
@@ -185,9 +228,15 @@ var SupportedModels = map[string]ModelInfo{
 		Parameters: map[string]Parameter{
 			"image_size": {
 				Type:        "object",
-				Default:     "square_hd",
+				Default:     nil,
 				Options:     []string{"square_hd", "square", "portrait_4_3", "portrait_16_9", "landscape_4_3", "landscape_16_9"},
 				Description: "Image size as preset or custom dimensions object {width: int, height: int}",
+				Required:    false,
+			},
+			"negative_prompt": {
+				Type:        "string",
+				Default:     "",
+				Description: "The negative prompt to use. Use it to address details that you don't want in the image",
 				Required:    false,
 			},
 			"num_images": {
@@ -198,26 +247,37 @@ var SupportedModels = map[string]ModelInfo{
 				Description: "Number of images to generate",
 				Required:    false,
 			},
-			"guidance_scale": {
-				Type:        "float",
-				Default:     7.5,
-				Min:         floatPtr(1.0),
-				Max:         floatPtr(15.0),
-				Description: "How closely to follow the prompt",
-				Required:    false,
-			},
 			"num_inference_steps": {
 				Type:        "integer",
 				Default:     8,
 				Min:         floatPtr(4),
 				Max:         floatPtr(20),
-				Description: "Number of denoising steps",
+				Description: "The number of inference steps to perform",
 				Required:    false,
 			},
 			"seed": {
 				Type:        "integer",
 				Default:     nil,
-				Description: "Random seed for reproducible results",
+				Description: "The same seed and the same prompt given to the same version of the model will output the same image every time",
+				Required:    false,
+			},
+			"sync_mode": {
+				Type:        "boolean",
+				Default:     false,
+				Description: "If set to true, the function will wait for the image to be generated and uploaded before returning the response",
+				Required:    false,
+			},
+			"enable_safety_checker": {
+				Type:        "boolean",
+				Default:     true,
+				Description: "If set to true, the safety checker will be enabled",
+				Required:    false,
+			},
+			"output_format": {
+				Type:        "string",
+				Default:     "jpeg",
+				Options:     []string{"jpeg", "png"},
+				Description: "The format of the generated image",
 				Required:    false,
 			},
 		},
@@ -274,6 +334,13 @@ func (m *ModelInfo) ValidateParameters(params map[string]interface{}) error {
 				return &FALError{
 					Code:    "invalid_parameter_type",
 					Message: key + " must be a string",
+				}
+			}
+		case "boolean":
+			if _, ok := value.(bool); !ok {
+				return &FALError{
+					Code:    "invalid_parameter_type",
+					Message: key + " must be a boolean",
 				}
 			}
 		case "object":
