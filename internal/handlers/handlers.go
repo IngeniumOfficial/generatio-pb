@@ -5,6 +5,7 @@ import (
 	"generatio-pb/internal/crypto"
 	"generatio-pb/internal/fal"
 	localmodels "generatio-pb/internal/models"
+	"net/http"
 	"time"
 
 	"github.com/pocketbase/pocketbase"
@@ -16,11 +17,11 @@ type Handler struct {
 	app          *pocketbase.PocketBase
 	sessionStore *auth.SessionStore
 	encService   *crypto.EncryptionService
-	falClient    *fal.Client
+	falClient    fal.FALClient
 }
 
 // NewHandler creates a new handler instance
-func NewHandler(app *pocketbase.PocketBase, sessionStore *auth.SessionStore, encService *crypto.EncryptionService, falClient *fal.Client) *Handler {
+func NewHandler(app *pocketbase.PocketBase, sessionStore *auth.SessionStore, encService *crypto.EncryptionService, falClient fal.FALClient) *Handler {
 	return &Handler{
 		app:          app,
 		sessionStore: sessionStore,
@@ -141,9 +142,31 @@ func (h *Handler) calculateRecentSpending(userID string, days int) (float64, err
 	return total, nil
 }
 
+// GetStatus handles GET /api/custom/status
+func (h *Handler) GetStatus(e *core.RequestEvent) error {
+	sessionStats := h.sessionStore.Stats()
+	
+	response := map[string]interface{}{
+		"status": "ok",
+		"services": map[string]interface{}{
+			"encryption": "AES-256-GCM with PBKDF2",
+			"sessions": map[string]interface{}{
+				"active": sessionStats.ActiveSessions,
+				"total":  sessionStats.TotalSessions,
+			},
+		},
+		"available_models": h.falClient.GetModels(),
+	}
+	
+	return e.JSON(http.StatusOK, response)
+}
+
 // RegisterRoutes registers all the API routes
-func RegisterRoutes(se *core.ServeEvent, app *pocketbase.PocketBase, sessionStore *auth.SessionStore, encService *crypto.EncryptionService, falClient *fal.Client) {
+func RegisterRoutes(se *core.ServeEvent, app *pocketbase.PocketBase, sessionStore *auth.SessionStore, encService *crypto.EncryptionService, falClient fal.FALClient) {
 	handler := NewHandler(app, sessionStore, encService, falClient)
+
+	// Status endpoint
+	se.Router.GET("/api/custom/status", handler.GetStatus)
 
 	// Token management
 	se.Router.POST("/api/custom/tokens/setup", handler.TokenSetup)

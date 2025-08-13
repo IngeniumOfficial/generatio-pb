@@ -25,7 +25,7 @@ A PocketBase extension for AI image generation using FAL AI, with encrypted toke
 
 ### Core Components
 
-- **PocketBase Database**: User data, generated images, preferences, collections
+- **PocketBase Database**: User data, generated images, preferences, folders
 - **Encryption Service**: AES-256-GCM with PBKDF2 for FAL token security
 - **Session Store**: In-memory session management with automatic cleanup
 - **FAL Client**: Async image generation with queue/polling system
@@ -41,57 +41,70 @@ go build -o generatio-pb
 
 Access PocketBase admin at `http://127.0.0.1:8090/_/` and create these collections:
 
-### Users Collection (extend existing)
+### Generatio Users Collection (auth type)
 
-Add fields:
+**Collection Name:** `generatio_users`
+**Type:** auth
 
-- `fal_token` (text) - Encrypted FAL AI token
-- `salt` (text) - Encryption salt
-- `financial_data` (json) - Spending tracking
+Add fields to the auth collection:
 
-### Generated Images Collection
+- `fal_token` (text) - Encrypted FAL AI token with salt (format: "encrypted.salt")
+- `financial_data` (json) - Spending tracking data
+- `model_preferences` (relation) - Relation to model_preferences collection
+
+### Images Collection
+
+**Collection Name:** `images`
 
 ```json
 {
-  "name": "generated_images",
+  "name": "images",
+  "type": "base",
   "fields": [
+    { "name": "title", "type": "text" },
+    { "name": "url", "type": "text", "required": true },
     { "name": "user_id", "type": "relation", "required": true },
-    { "name": "model_name", "type": "text", "required": true },
     { "name": "prompt", "type": "text", "required": true },
-    { "name": "image_url", "type": "url", "required": true },
-    { "name": "parameters", "type": "json" },
-    { "name": "cost_usd", "type": "number" },
-    { "name": "generation_time_ms", "type": "number" },
-    { "name": "fal_request_id", "type": "text" },
-    { "name": "collection_id", "type": "text" }
+    { "name": "request_id", "type": "text" },
+    { "name": "model", "type": "text", "required": true },
+    { "name": "batch_number", "type": "number" },
+    { "name": "image_size", "type": "json" },
+    { "name": "other_info", "type": "json" },
+    { "name": "folder_id", "type": "relation" },
+    { "name": "deleted_at", "type": "date" }
+  ]
+}
+```
+
+### Folders Collection
+
+**Collection Name:** `folders`
+
+```json
+{
+  "name": "folders",
+  "type": "base",
+  "fields": [
+    { "name": "name", "type": "text", "required": true },
+    { "name": "user_id", "type": "relation", "required": true },
+    { "name": "parent_id", "type": "relation" },
+    { "name": "private", "type": "bool" },
+    { "name": "deleted_at", "type": "date" }
   ]
 }
 ```
 
 ### Model Preferences Collection
 
+**Collection Name:** `model_preferences`
+
 ```json
 {
   "name": "model_preferences",
+  "type": "base",
   "fields": [
-    { "name": "user_id", "type": "relation", "required": true },
     { "name": "model_name", "type": "text", "required": true },
-    { "name": "parameters", "type": "json", "required": true }
-  ]
-}
-```
-
-### Collections Collection
-
-```json
-{
-  "name": "collections",
-  "fields": [
-    { "name": "user_id", "type": "relation", "required": true },
-    { "name": "name", "type": "text", "required": true },
-    { "name": "description", "type": "text" },
-    { "name": "parent_id", "type": "text" },
-    { "name": "image_ids", "type": "json" }
+    { "name": "preferences", "type": "json", "required": true }
   ]
 }
 ```
@@ -100,7 +113,7 @@ Add fields:
 
 All endpoints require PocketBase authentication unless noted.
 
-### Testing Endpoints
+### System Status
 
 #### `GET /api/custom/status`
 
@@ -113,27 +126,23 @@ Returns system status and available models.
   "status": "ok",
   "services": {
     "encryption": "AES-256-GCM with PBKDF2",
-    "sessions": { "active": 0, "total": 0 },
-    "fal_models": 3
+    "sessions": {
+      "active": 0,
+      "total": 0
+    }
   },
-  "available_models": [
-    "flux/schnell",
-    "hidream/hidream-i1-dev",
-    "hidream/hidream-i1-fast"
-  ]
-}
-```
-
-#### `POST /api/custom/test/encryption`
-
-Tests encryption/decryption functionality.
-
-**Request:**
-
-```json
-{
-  "text": "test data",
-  "password": "password123"
+  "available_models": {
+    "flux/schnell": {
+      "name": "flux/schnell",
+      "display_name": "Flux Schnell",
+      "cost_per_image": 0.003
+    },
+    "hidream/hidream-i1-dev": {
+      "name": "hidream/hidream-i1-dev",
+      "display_name": "Hi-Dream I1 Dev",
+      "cost_per_image": 0.004
+    }
+  }
 }
 ```
 
@@ -251,7 +260,7 @@ Generate AI images using FAL API.
     "num_images": 1,
     "guidance_scale": 7.5
   },
-  "collection_id": "optional-collection-id"
+  "collection_id": "optional-folder-id"
 }
 ```
 
@@ -288,10 +297,17 @@ List available AI models and their parameters.
     "cost_per_image": 0.003,
     "parameters": {
       "image_size": {
-        "type": "object",
+        "type": "string",
         "default": "square_hd",
-        "options": ["square_hd", "square", "portrait_4_3"],
+        "options": ["square_hd", "square", "portrait_4_3", "landscape_4_3"],
         "description": "Image size preset"
+      },
+      "num_images": {
+        "type": "integer",
+        "default": 1,
+        "min": 1,
+        "max": 4,
+        "description": "Number of images to generate"
       }
     }
   }
@@ -356,11 +372,20 @@ Save preferences for a model.
 }
 ```
 
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Preferences saved successfully"
+}
+```
+
 ### Collections Management
 
 #### `POST /api/custom/collections/create`
 
-Create image collection.
+Create image folder/collection.
 
 **Headers:** `Authorization: Bearer <pocketbase_jwt>`
 
@@ -369,7 +394,7 @@ Create image collection.
 ```json
 {
   "name": "My Collection",
-  "parent_id": "optional-parent-collection-id"
+  "parent_id": "optional-parent-folder-id"
 }
 ```
 
@@ -377,7 +402,7 @@ Create image collection.
 
 ```json
 {
-  "id": "collection-id",
+  "id": "folder-id",
   "name": "My Collection",
   "parent_id": "parent-id",
   "created": "2024-01-01T12:00:00Z"
@@ -386,7 +411,7 @@ Create image collection.
 
 #### `GET /api/custom/collections`
 
-List user collections.
+List user folders/collections.
 
 **Headers:** `Authorization: Bearer <pocketbase_jwt>`
 
@@ -396,10 +421,11 @@ List user collections.
 {
   "collections": [
     {
-      "id": "collection-id",
+      "id": "folder-id",
       "user_id": "user-id",
       "name": "My Collection",
       "parent_id": "",
+      "private": false,
       "created": "2024-01-01T12:00:00Z",
       "updated": "2024-01-01T12:00:00Z"
     }
@@ -411,9 +437,11 @@ List user collections.
 
 - **Zero-knowledge encryption**: Server never sees plaintext FAL tokens
 - **AES-256-GCM encryption** with PBKDF2 key derivation (100,000 iterations)
+- **Combined salt storage**: Encrypted data and salt stored as "encrypted.salt" format
 - **In-memory sessions**: No persistent session storage
 - **Multi-layer authentication**: PocketBase JWT + session validation
 - **Input validation**: All parameters validated against model requirements
+- **Automatic cleanup**: Background session cleanup and expired data removal
 
 ## Supported AI Models
 
@@ -426,26 +454,56 @@ List user collections.
 ### Project Structure
 
 ```
-├── main.go                      # Application entry point
+├── main.go                         # Application entry point
 ├── internal/
 │   ├── auth/
-│   │   ├── sessions.go          # Session management
-│   │   └── cleanup.go           # Background cleanup
+│   │   ├── sessions.go             # Session management
+│   │   └── cleanup.go              # Background cleanup
 │   ├── crypto/
-│   │   └── encryption.go        # AES-256-GCM encryption
+│   │   └── encryption.go           # AES-256-GCM encryption
 │   ├── fal/
-│   │   ├── client.go            # FAL AI client
-│   │   └── models.go            # Model definitions
+│   │   ├── client.go               # FAL AI client
+│   │   ├── mock_client.go          # Mock client for testing
+│   │   ├── interface.go            # FAL client interface
+│   │   └── models.go               # Model definitions
 │   ├── handlers/
-│   │   ├── handlers.go          # Main API handlers
-│   │   └── example.go           # Testing endpoints
+│   │   ├── handlers.go             # Base handler and routing
+│   │   ├── auth_handlers.go        # Authentication endpoints
+│   │   ├── generation_handlers.go  # Image generation endpoints
+│   │   ├── user_handlers.go        # User management endpoints
+│   │   ├── collections_handlers.go # Collections management
+│   │   └── example.go              # Example/testing endpoints
 │   ├── models/
-│   │   └── types.go             # Data structures
+│   │   └── types.go                # Data structures and API models
 │   └── utils/
-│       ├── validation.go        # Input validation
-│       └── errors.go            # Error handling
+│       ├── validation.go           # Input validation
+│       └── errors.go               # Error handling
+├── tests/
+│   ├── api_test.go                 # Comprehensive API tests
+│   └── README.md                   # Test documentation
 └── README.md
 ```
+
+### Testing
+
+The project includes comprehensive test coverage:
+
+```bash
+# Run all tests with verbose output
+go test ./tests -v
+
+# Run tests with coverage
+go test ./tests -cover
+```
+
+**Test Coverage:**
+
+- Mock FAL client operations
+- Encryption/decryption workflows
+- Session management and cleanup
+- API request/response validation
+- Complete business logic flows
+- Error handling and edge cases
 
 ### Configuration
 
@@ -482,3 +540,30 @@ All endpoints return standardized error responses:
 - `not_found`: Resource not found
 - `internal_error`: Server error
 - `external_error`: FAL AI service error
+- `rate_limit_error`: Rate limit exceeded
+
+## Technical Implementation
+
+### Encryption Details
+
+- **Algorithm**: AES-256-GCM with PBKDF2-SHA256
+- **Key Derivation**: 100,000 iterations, 32-byte salt
+- **Storage Format**: Combined "encrypted_data.base64_salt" format
+- **Zero-Knowledge**: Server never accesses plaintext tokens
+
+### Session Management
+
+- **Storage**: In-memory with automatic cleanup
+- **Timeout**: Configurable (default 24 hours)
+- **Security**: Session IDs are UUIDs, tokens cleared on deletion
+- **Cleanup**: Background goroutine removes expired sessions
+
+### Database Integration
+
+- **Primary Collection**: `generatio_users` (auth type)
+- **Image Storage**: `images` collection with relation to users
+- **Organization**: `folders` collection for image organization
+- **Preferences**: `model_preferences` collection for user settings
+- **Soft Deletes**: Uses `deleted_at` timestamps for recovery
+
+This implementation provides a secure, scalable foundation for AI image generation with comprehensive testing and proper separation of concerns.
