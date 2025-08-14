@@ -335,11 +335,19 @@ Get spending statistics.
 
 ### User Preferences
 
-#### `GET /api/custom/preferences/{model_name}`
+#### `POST /api/custom/preferences/get`
 
 Get saved preferences for a model.
 
 **Headers:** `Authorization: Bearer <pocketbase_jwt>`
+
+**Request:**
+
+```json
+{
+  "model_name": "flux/schnell"
+}
+```
 
 **Response:**
 
@@ -354,7 +362,7 @@ Get saved preferences for a model.
 }
 ```
 
-#### `POST /api/custom/preferences/{model_name}`
+#### `POST /api/custom/preferences/save`
 
 Save preferences for a model.
 
@@ -364,6 +372,7 @@ Save preferences for a model.
 
 ```json
 {
+  "model_name": "flux/schnell",
   "preferences": {
     "image_size": "square_hd",
     "guidance_scale": 7.5,

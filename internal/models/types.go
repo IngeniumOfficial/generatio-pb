@@ -146,7 +146,13 @@ type PreferencesResponse struct {
 
 // SavePreferencesRequest represents the request to save preferences
 type SavePreferencesRequest struct {
+	ModelName   string                 `json:"model_name" validate:"required"`
 	Preferences map[string]interface{} `json:"preferences" validate:"required"`
+}
+
+// GetPreferencesRequest represents the request to get preferences
+type GetPreferencesRequest struct {
+	ModelName string `json:"model_name" validate:"required"`
 }
 
 // CreateCollectionRequest represents the request to create a collection

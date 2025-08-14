@@ -161,8 +161,8 @@ func RegisterRoutes(se *core.ServeEvent, app *pocketbase.PocketBase, sessionStor
 	se.Router.GET("/api/custom/financial/stats", handler.GetFinancialStats)
 
 	// User preferences
-	se.Router.GET("/api/custom/preferences/{model_name}", handler.GetPreferences)
-	se.Router.POST("/api/custom/preferences/{model_name}", handler.SavePreferences)
+	se.Router.POST("/api/custom/preferences/get", handler.GetPreferences)
+	se.Router.POST("/api/custom/preferences/save", handler.SavePreferences)
 
 	// Collections management
 	se.Router.POST("/api/custom/collections/create", handler.CreateCollection)

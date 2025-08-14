@@ -53,10 +53,14 @@ func (h *Handler) GetFinancialStats(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, resp)
 }
 
-// GetPreferences handles GET /api/custom/preferences/{model_name}
+// GetPreferences handles POST /api/custom/preferences/get
 func (h *Handler) GetPreferences(e *core.RequestEvent) error {
-	modelName := e.Request.PathValue("model_name")
-	if modelName == "" {
+	var req localmodels.GetPreferencesRequest
+	if err := json.NewDecoder(e.Request.Body).Decode(&req); err != nil {
+		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Invalid request body")
+	}
+
+	if req.ModelName == "" {
 		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Model name is required")
 	}
 
@@ -71,12 +75,12 @@ func (h *Handler) GetPreferences(e *core.RequestEvent) error {
 		"model_preferences",
 		"model_name = {:model_name}",
 		map[string]any{
-			"model_name": modelName,
+			"model_name": req.ModelName,
 		},
 	)
 
 	resp := localmodels.PreferencesResponse{
-		ModelName:      modelName,
+		ModelName:      req.ModelName,
 		HasPreferences: false,
 		Preferences:    make(map[string]interface{}),
 	}
@@ -104,16 +108,15 @@ func (h *Handler) GetPreferences(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, resp)
 }
 
-// SavePreferences handles POST /api/custom/preferences/{model_name}
+// SavePreferences handles POST /api/custom/preferences/save
 func (h *Handler) SavePreferences(e *core.RequestEvent) error {
-	modelName := e.Request.PathValue("model_name")
-	if modelName == "" {
-		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Model name is required")
-	}
-
 	var req localmodels.SavePreferencesRequest
 	if err := json.NewDecoder(e.Request.Body).Decode(&req); err != nil {
 		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Invalid request body")
+	}
+
+	if req.ModelName == "" {
+		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Model name is required")
 	}
 
 	// Get authenticated user
@@ -127,7 +130,7 @@ func (h *Handler) SavePreferences(e *core.RequestEvent) error {
 		"model_preferences",
 		"model_name = {:model_name}",
 		map[string]any{
-			"model_name": modelName,
+			"model_name": req.ModelName,
 		},
 	)
 
@@ -139,7 +142,7 @@ func (h *Handler) SavePreferences(e *core.RequestEvent) error {
 			return h.errorResponse(e, http.StatusInternalServerError, localmodels.ErrCodeInternal, "Failed to find preferences collection")
 		}
 		record = core.NewRecord(collection)
-		record.Set("model_name", modelName)
+		record.Set("model_name", req.ModelName)
 		isNewRecord = true
 	}
 
