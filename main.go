@@ -77,6 +77,7 @@ func main() {
 		log.Println("   POST /api/custom/preferences/{model_name}")
 		log.Println("   POST /api/custom/collections/create")
 		log.Println("   GET /api/custom/collections")
+		log.Println("   (Note: Status endpoint removed to avoid conflicts)")
 		log.Println("")
 
 		// Register production API routes
