@@ -79,13 +79,9 @@ func main() {
 		log.Println("   GET /api/custom/collections")
 		log.Println("")
 
-		// Register example routes for testing
-		handlers.RegisterExampleRoutes(se, app, sessionStore, encService, falClient)
-		log.Println("✓ Example API routes registered")
-
 		// Register production API routes
 		handlers.RegisterRoutes(se, app, sessionStore, encService, falClient)
-		log.Println("✓ Production API routes registered")
+		log.Println("✓ API routes registered")
 
 		// Serve static files from the provided public dir (if exists)
 		se.Router.GET("/{path...}", apis.Static(os.DirFS("./pb_public"), false))
