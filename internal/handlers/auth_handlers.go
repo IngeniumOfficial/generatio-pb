@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -14,20 +15,36 @@ import (
 
 // TokenSetup handles POST /api/custom/tokens/setup
 func (h *Handler) TokenSetup(e *core.RequestEvent) error {
+	log.Printf("TokenSetup: Received request from %s", e.Request.RemoteAddr)
+	log.Printf("TokenSetup: Request headers: %+v", e.Request.Header)
+	
 	var req localmodels.SetupTokenRequest
 	if err := json.NewDecoder(e.Request.Body).Decode(&req); err != nil {
+		log.Printf("TokenSetup: Failed to decode request body: %v", err)
 		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Invalid request body")
 	}
 
+	log.Printf("TokenSetup: Request decoded successfully, FAL token length: %d", len(req.FALToken))
+
 	if req.FALToken == "" || req.Password == "" {
+		log.Printf("TokenSetup: Missing required fields - FAL token empty: %t, Password empty: %t", req.FALToken == "", req.Password == "")
 		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "FAL token and password are required")
 	}
 
 	// Get authenticated user
+	log.Printf("TokenSetup: Attempting to get authenticated user")
+	log.Printf("TokenSetup: Auth record present: %t", e.Auth != nil)
+	if e.Auth != nil {
+		log.Printf("TokenSetup: Auth record collection: %s, ID: %s", e.Auth.Collection().Name, e.Auth.Id)
+	}
+	
 	user, err := h.getAuthenticatedUser(e)
 	if err != nil {
+		log.Printf("TokenSetup: Authentication failed: %v", err)
 		return h.errorResponse(e, http.StatusUnauthorized, localmodels.ErrCodeAuth, "Authentication required")
 	}
+
+	log.Printf("TokenSetup: User authenticated successfully - ID: %s, Collection: %s", user.Id, user.Collection().Name)
 
 	// Validate FAL token by testing it
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
