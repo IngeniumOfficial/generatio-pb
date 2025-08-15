@@ -38,6 +38,10 @@ func main() {
 	cleanupService := auth.NewCleanupService(sessionStore, 1*time.Hour)
 	log.Println("✓ Cleanup service initialized")
 
+	// Note: Auto-session creation will be handled via custom login endpoint
+	// PocketBase event hooks don't provide reliable access to raw password
+	log.Println("✓ Auto-session setup will be handled via custom login endpoint")
+
 	// Setup on serve
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		log.Println("Setting up Generatio services...")
@@ -70,6 +74,7 @@ func main() {
 		log.Println("   POST /api/custom/tokens/verify")
 		log.Println("   POST /api/custom/auth/create-session")
 		log.Println("   DELETE /api/custom/auth/session")
+		log.Println("   POST /api/custom/auth/login (with auto-session creation)")
 		log.Println("   POST /api/custom/generate/image")
 		log.Println("   GET /api/custom/generate/models")
 		log.Println("   GET /api/custom/financial/stats")
@@ -78,6 +83,12 @@ func main() {
 		log.Println("   POST /api/custom/collections/create")
 		log.Println("   GET /api/custom/collections")
 		log.Println("   (Note: Status endpoint removed to avoid conflicts)")
+		log.Println("")
+		log.Println("🔄 Auto-Session Creation:")
+		log.Println("   ✓ Custom login endpoint auto-creates sessions when FAL tokens exist")
+		log.Println("   ✓ Eliminates need to manually call create-session after login")
+		log.Println("   ✓ Seamless experience after server restarts")
+		log.Println("   ✓ Falls back gracefully if token decryption fails")
 		log.Println("")
 
 		// Register production API routes

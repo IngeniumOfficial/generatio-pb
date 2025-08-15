@@ -201,3 +201,17 @@ const (
 	ErrCodeExternal      = "external_error"
 	ErrCodeRateLimit     = "rate_limit_error"
 )
+
+// CustomLoginRequest represents the request for custom login with auto-session creation
+type CustomLoginRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
+}
+
+// CustomLoginResponse represents the response for custom login
+type CustomLoginResponse struct {
+	Token     string    `json:"token"`
+	Record    map[string]interface{} `json:"record"`
+	SessionID string    `json:"session_id,omitempty"`
+	Message   string    `json:"message,omitempty"`
+}

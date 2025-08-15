@@ -197,9 +197,50 @@ Verify stored token accessibility.
 
 ### Session Management
 
+#### `POST /api/custom/auth/login` (Recommended)
+
+Custom login endpoint that authenticates users and automatically creates sessions when FAL tokens exist.
+
+**Request:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "user-password"
+}
+```
+
+**Response:**
+
+```json
+{
+  "token": "",
+  "record": {
+    "id": "user-id",
+    "email": "user@example.com"
+  },
+  "session_id": "uuid-session-id",
+  "message": "Login successful with auto-created session"
+}
+```
+
+**Auto-Session Creation:**
+
+- If user has stored FAL token and password matches encryption password, session is automatically created
+- Eliminates need for separate `/create-session` call after login
+- Provides seamless experience after server restarts
+- Falls back gracefully with informative messages if token decryption fails
+
+**Possible Response Messages:**
+
+- `"Login successful with auto-created session"` - Session created successfully
+- `"Login successful. FAL token found but password doesn't match - please call create-session manually"` - Token exists but wrong encryption password
+- `"Login successful. No FAL token configured - setup required"` - No token stored yet
+- `"Login successful. Invalid FAL token format - please setup token again"` - Token format corrupted
+
 #### `POST /api/custom/auth/create-session`
 
-Create in-memory session with decrypted FAL token.
+Create in-memory session with decrypted FAL token (manual approach).
 
 **Headers:** `Authorization: Bearer <pocketbase_jwt>`
 
@@ -451,6 +492,32 @@ List user folders/collections.
 - **Multi-layer authentication**: PocketBase JWT + session validation
 - **Input validation**: All parameters validated against model requirements
 - **Automatic cleanup**: Background session cleanup and expired data removal
+- **Auto-session creation**: Seamless session restoration after server restarts
+
+## User Experience Improvements
+
+### Automatic Session Management
+
+The custom login endpoint (`/api/custom/auth/login`) provides a superior user experience by:
+
+1. **Eliminating Manual Steps**: No need to call separate endpoints after login
+2. **Server Restart Recovery**: Sessions automatically recreated when users return
+3. **Graceful Degradation**: Clear error messages when token issues occur
+4. **Password Validation**: Ensures stored token can be decrypted before creating session
+
+### Recommended Workflow
+
+**For new users:**
+
+1. Register via standard PocketBase auth
+2. Call `/api/custom/tokens/setup` to store encrypted FAL token
+3. Use `/api/custom/auth/login` for subsequent logins (auto-creates sessions)
+
+**For existing users:**
+
+1. Use `/api/custom/auth/login` - sessions created automatically
+2. If decryption fails, user receives clear guidance
+3. No manual session management required
 
 ## Supported AI Models
 

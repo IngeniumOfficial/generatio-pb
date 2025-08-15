@@ -152,6 +152,7 @@ func RegisterRoutes(se *core.ServeEvent, app *pocketbase.PocketBase, sessionStor
 	// Session management
 	se.Router.POST("/api/custom/auth/create-session", handler.CreateSession)
 	se.Router.DELETE("/api/custom/auth/session", handler.DeleteSession)
+	se.Router.POST("/api/custom/auth/login", handler.CustomLogin)
 
 	// Image generation
 	se.Router.POST("/api/custom/generate/image", handler.GenerateImage)
