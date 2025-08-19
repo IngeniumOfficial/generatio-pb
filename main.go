@@ -75,6 +75,7 @@ func main() {
 		log.Println("   POST /api/custom/auth/create-session")
 		log.Println("   DELETE /api/custom/auth/session")
 		log.Println("   POST /api/custom/auth/login (with auto-session creation)")
+		log.Println("   GET /api/custom/auth/token-status")
 		log.Println("   POST /api/custom/generate/image")
 		log.Println("   GET /api/custom/generate/models")
 		log.Println("   GET /api/custom/financial/stats")

@@ -279,6 +279,54 @@ Delete active session.
 }
 ```
 
+#### `GET /api/custom/auth/token-status`
+
+Check if authenticated user has stored encrypted FAL token and active session status.
+
+**Headers:** `Authorization: Bearer <pocketbase_jwt>`
+
+**Response:**
+
+```json
+{
+  "has_token": true,
+  "has_active_session": false,
+  "requires_login": true
+}
+```
+
+**Use Cases:**
+
+- **App startup after server restart**: Check if user needs to re-login to recreate session
+- **Smart UI flow**: Determine whether to show token setup or login prompt
+- **Session state validation**: Verify current authentication/session status
+
+**Response Logic:**
+
+- `has_token`: User has encrypted FAL token stored in database
+- `has_active_session`: User has valid in-memory session
+- `requires_login`: User has token but no session (needs to re-login)
+
+**Client Implementation Example:**
+
+```javascript
+const response = await fetch("/api/custom/auth/token-status", {
+  headers: { Authorization: `Bearer ${jwt}` },
+});
+const status = await response.json();
+
+if (status.requires_login) {
+  // Show login prompt to recreate session
+  showLoginDialog("Session expired, please log in again");
+} else if (!status.has_token) {
+  // Show token setup flow
+  showTokenSetup();
+} else {
+  // User is ready to generate images
+  proceedToApp();
+}
+```
+
 ### Image Generation
 
 #### `POST /api/custom/generate/image`

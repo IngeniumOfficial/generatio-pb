@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"generatio-pb/internal/auth"
 	"generatio-pb/internal/crypto"
 	"generatio-pb/internal/fal"
+	localmodels "generatio-pb/internal/models"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -311,5 +313,221 @@ func TestAutoSessionIntegrationFlow(t *testing.T) {
 
 		// Clean up
 		sessionStore.Delete(sessionID)
+	})
+}
+
+func TestTokenStatus(t *testing.T) {
+	// Test the token status endpoint logic
+	// This tests the business logic without requiring full PocketBase HTTP setup
+
+	encService := crypto.NewEncryptionService(1000)
+	sessionStore := auth.NewSessionStore(24 * time.Hour)
+	userID := "test_user_123"
+	userPassword := "userpassword"
+	falToken := "test-fal-token"
+
+	t.Run("User with no token", func(t *testing.T) {
+		// Simulate user with no FAL token
+		combinedToken := ""
+		hasToken := combinedToken != ""
+
+		hasActiveSession := false
+		if hasToken {
+			_, err := sessionStore.GetUserSession(userID)
+			hasActiveSession = err == nil
+		}
+
+		requiresLogin := hasToken && !hasActiveSession
+
+		// Expected response
+		expectedResponse := map[string]bool{
+			"has_token":          false,
+			"has_active_session": false,
+			"requires_login":     false,
+		}
+
+		assert.Equal(t, expectedResponse["has_token"], hasToken)
+		assert.Equal(t, expectedResponse["has_active_session"], hasActiveSession)
+		assert.Equal(t, expectedResponse["requires_login"], requiresLogin)
+	})
+
+	t.Run("User with token but no session", func(t *testing.T) {
+		// Setup encrypted token
+		encResult, err := encService.Encrypt(falToken, userPassword)
+		require.NoError(t, err)
+		combinedToken := encResult.Encrypted + "." + encResult.Salt
+
+		hasToken := combinedToken != ""
+
+		hasActiveSession := false
+		if hasToken {
+			_, err := sessionStore.GetUserSession(userID)
+			hasActiveSession = err == nil
+		}
+
+		requiresLogin := hasToken && !hasActiveSession
+
+		// Expected response
+		expectedResponse := map[string]bool{
+			"has_token":          true,
+			"has_active_session": false,
+			"requires_login":     true,
+		}
+
+		assert.Equal(t, expectedResponse["has_token"], hasToken)
+		assert.Equal(t, expectedResponse["has_active_session"], hasActiveSession)
+		assert.Equal(t, expectedResponse["requires_login"], requiresLogin)
+	})
+
+	t.Run("User with token and active session", func(t *testing.T) {
+		// Setup encrypted token
+		encResult, err := encService.Encrypt(falToken, userPassword)
+		require.NoError(t, err)
+		combinedToken := encResult.Encrypted + "." + encResult.Salt
+
+		hasToken := combinedToken != ""
+
+		// Create active session
+		sessionID, err := sessionStore.Create(userID, falToken)
+		require.NoError(t, err)
+
+		hasActiveSession := false
+		if hasToken {
+			_, err := sessionStore.GetUserSession(userID)
+			hasActiveSession = err == nil
+		}
+
+		requiresLogin := hasToken && !hasActiveSession
+
+		// Expected response
+		expectedResponse := map[string]bool{
+			"has_token":          true,
+			"has_active_session": true,
+			"requires_login":     false,
+		}
+
+		assert.Equal(t, expectedResponse["has_token"], hasToken)
+		assert.Equal(t, expectedResponse["has_active_session"], hasActiveSession)
+		assert.Equal(t, expectedResponse["requires_login"], requiresLogin)
+
+		// Clean up
+		sessionStore.Delete(sessionID)
+	})
+
+	t.Run("Session expiration affects status", func(t *testing.T) {
+		// Create session store with very short timeout
+		shortSessionStore := auth.NewSessionStore(1 * time.Millisecond)
+
+		// Setup encrypted token
+		encResult, err := encService.Encrypt(falToken, userPassword)
+		require.NoError(t, err)
+		combinedToken := encResult.Encrypted + "." + encResult.Salt
+
+		hasToken := combinedToken != ""
+
+		// Create session that will expire quickly
+		_, err = shortSessionStore.Create(userID, falToken)
+		require.NoError(t, err)
+
+		// Initially should have active session
+		_, err = shortSessionStore.GetUserSession(userID)
+		assert.NoError(t, err)
+
+		// Wait for expiration
+		time.Sleep(10 * time.Millisecond)
+
+		// Now should not have active session
+		hasActiveSession := false
+		if hasToken {
+			_, err := shortSessionStore.GetUserSession(userID)
+			hasActiveSession = err == nil
+		}
+
+		requiresLogin := hasToken && !hasActiveSession
+
+		// Should require login after expiration
+		assert.True(t, hasToken)
+		assert.False(t, hasActiveSession)
+		assert.True(t, requiresLogin)
+	})
+
+	t.Run("Multiple sessions for user", func(t *testing.T) {
+		// Test that user session detection works with multiple sessions
+		encResult, err := encService.Encrypt(falToken, userPassword)
+		require.NoError(t, err)
+		combinedToken := encResult.Encrypted + "." + encResult.Salt
+
+		hasToken := combinedToken != ""
+
+		// Create multiple sessions for user
+		sessionID1, err := sessionStore.Create(userID, falToken)
+		require.NoError(t, err)
+
+		sessionID2, err := sessionStore.Create(userID+"_other", falToken)
+		require.NoError(t, err)
+
+		// Should still detect active session for our user
+		hasActiveSession := false
+		if hasToken {
+			_, err := sessionStore.GetUserSession(userID)
+			hasActiveSession = err == nil
+		}
+
+		assert.True(t, hasToken)
+		assert.True(t, hasActiveSession)
+		assert.False(t, hasToken && !hasActiveSession) // requires_login should be false
+
+		// Clean up
+		sessionStore.Delete(sessionID1)
+		sessionStore.Delete(sessionID2)
+	})
+}
+
+func TestTokenStatusResponseStructure(t *testing.T) {
+	// Test the response structure and JSON marshaling
+	
+	t.Run("JSON marshaling", func(t *testing.T) {
+		response := localmodels.TokenStatusResponse{
+			HasToken:         true,
+			HasActiveSession: false,
+			RequiresLogin:    true,
+		}
+
+		data, err := json.Marshal(response)
+		require.NoError(t, err)
+
+		var unmarshaled localmodels.TokenStatusResponse
+		err = json.Unmarshal(data, &unmarshaled)
+		require.NoError(t, err)
+
+		assert.Equal(t, response.HasToken, unmarshaled.HasToken)
+		assert.Equal(t, response.HasActiveSession, unmarshaled.HasActiveSession)
+		assert.Equal(t, response.RequiresLogin, unmarshaled.RequiresLogin)
+	})
+
+	t.Run("All scenarios coverage", func(t *testing.T) {
+		scenarios := []struct {
+			name             string
+			hasToken         bool
+			hasActiveSession bool
+			expectedLogin    bool
+		}{
+			{"No token, no session", false, false, false},
+			{"Has token, no session", true, false, true},
+			{"Has token, has session", true, true, false},
+			{"No token, has session", false, true, false}, // Edge case, shouldn't happen
+		}
+
+		for _, scenario := range scenarios {
+			t.Run(scenario.name, func(t *testing.T) {
+				response := localmodels.TokenStatusResponse{
+					HasToken:         scenario.hasToken,
+					HasActiveSession: scenario.hasActiveSession,
+					RequiresLogin:    scenario.hasToken && !scenario.hasActiveSession,
+				}
+
+				assert.Equal(t, scenario.expectedLogin, response.RequiresLogin)
+			})
+		}
 	})
 }

@@ -215,3 +215,10 @@ type CustomLoginResponse struct {
 	SessionID string    `json:"session_id,omitempty"`
 	Message   string    `json:"message,omitempty"`
 }
+
+// TokenStatusResponse represents the response for token status check
+type TokenStatusResponse struct {
+	HasToken         bool `json:"has_token"`
+	HasActiveSession bool `json:"has_active_session"`
+	RequiresLogin    bool `json:"requires_login"`
+}

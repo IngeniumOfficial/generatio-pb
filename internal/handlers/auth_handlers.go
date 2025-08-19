@@ -312,3 +312,40 @@ func (h *Handler) CustomLogin(e *core.RequestEvent) error {
 	log.Printf("CustomLogin: ✓ Login complete for user %s", user.Id)
 	return e.JSON(http.StatusOK, resp)
 }
+
+// TokenStatus handles GET /api/custom/auth/token-status
+func (h *Handler) TokenStatus(e *core.RequestEvent) error {
+	// Get authenticated user
+	user, err := h.getAuthenticatedUser(e)
+	if err != nil {
+		return h.errorResponse(e, http.StatusUnauthorized, localmodels.ErrCodeAuth, "Authentication required")
+	}
+
+	log.Printf("TokenStatus: Checking token status for user %s", user.Id)
+
+	// Check if user has stored encrypted token
+	combinedToken := user.GetString("fal_token")
+	hasToken := combinedToken != ""
+
+	// Check if user has active session
+	hasActiveSession := false
+	if hasToken {
+		// Check if user has any active sessions
+		_, err := h.sessionStore.GetUserSession(user.Id)
+		hasActiveSession = err == nil
+	}
+
+	// Determine if login is required
+	requiresLogin := hasToken && !hasActiveSession
+
+	response := localmodels.TokenStatusResponse{
+		HasToken:         hasToken,
+		HasActiveSession: hasActiveSession,
+		RequiresLogin:    requiresLogin,
+	}
+
+	log.Printf("TokenStatus: User %s - HasToken: %t, HasActiveSession: %t, RequiresLogin: %t",
+		user.Id, hasToken, hasActiveSession, requiresLogin)
+
+	return e.JSON(http.StatusOK, response)
+}
