@@ -189,10 +189,16 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 	// Official FAL queue status endpoint format
 	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, baseModelID, requestID)
 
-	fmt.Printf("🔍 FAL Status Check Debug:\n")
-	fmt.Printf("  URL: %s\n", url)
-	fmt.Printf("  Method: GET\n")
+	fmt.Printf("🔍 FAL Status Check Debug (Legacy Method):\n")
+	fmt.Printf("  ==========================================\n")
+	fmt.Printf("  Base URL: %s\n", c.baseURL)
+	fmt.Printf("  Default Model ID: %s\n", modelID)
+	fmt.Printf("  Base Model ID: %s\n", baseModelID)
 	fmt.Printf("  Request ID: %s\n", requestID)
+	fmt.Printf("  Final Status URL: %s\n", url)
+	fmt.Printf("  Method: GET\n")
+	fmt.Printf("  Token: %s...\n", token[:min(10, len(token))])
+	fmt.Printf("  ==========================================\n")
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -252,13 +258,23 @@ func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, reque
 	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, baseModelID, requestID)
 
 	fmt.Printf("🔍 FAL Status Check Debug (With Model):\n")
+	fmt.Printf("  ==========================================\n")
 	fmt.Printf("  Base URL: %s\n", c.baseURL)
-	fmt.Printf("  Full Model ID: %s\n", modelID)
+	fmt.Printf("  Input Model ID: %s\n", modelID)
 	fmt.Printf("  Base Model ID: %s\n", baseModelID)
 	fmt.Printf("  Request ID: %s\n", requestID)
-	fmt.Printf("  Status URL: %s\n", url)
+	fmt.Printf("  Final Status URL: %s\n", url)
 	fmt.Printf("  Method: GET\n")
+	fmt.Printf("  Token: %s...\n", token[:min(10, len(token))])
 	fmt.Printf("  Token length: %d\n", len(token))
+	fmt.Printf("  ==========================================\n")
+	
+	// Verify the base model ID conversion is working
+	fmt.Printf("🔧 Model ID Conversion Check:\n")
+	fmt.Printf("  Original: %s\n", modelID)
+	fmt.Printf("  Expected base for flux/schnell: fal-ai/flux\n")
+	fmt.Printf("  Actual base: %s\n", baseModelID)
+	fmt.Printf("  Conversion correct: %t\n", (modelID == "fal-ai/flux/schnell" && baseModelID == "fal-ai/flux"))
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
