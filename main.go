@@ -90,13 +90,19 @@ func main() {
 		log.Println("   ✓ Manual session creation via create-session endpoint")
 		log.Println("   ✓ Secure separation of auth and session management")
 		log.Println("")
+		log.Println("🔧 Route Debugging & Testing:")
+		log.Println("   ✓ Enhanced route registration logging enabled")
+		log.Println("   ✓ Test endpoint available: GET /api/custom/test")
+		log.Println("   ✓ Image generation endpoint debugging added")
+		log.Println("   ✓ Static file routing conflicts resolved")
+		log.Println("")
+
+		// Serve static files from the provided public dir (if exists) - register BEFORE custom routes
+		se.Router.GET("/static/{path...}", apis.Static(os.DirFS("./pb_public"), false))
 
 		// Register production API routes
 		handlers.RegisterRoutes(se, app, sessionStore, encService, falClient)
 		log.Println("✓ API routes registered")
-
-		// Serve static files from the provided public dir (if exists)
-		se.Router.GET("/{path...}", apis.Static(os.DirFS("./pb_public"), false))
 
 		return se.Next()
 	})

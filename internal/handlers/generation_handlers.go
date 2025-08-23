@@ -14,8 +14,15 @@ import (
 
 // GenerateImage handles POST /api/custom/generate/image
 func (h *Handler) GenerateImage(e *core.RequestEvent) error {
+	h.app.Logger().Info("🎨 GenerateImage endpoint called",
+		"method", e.Request.Method,
+		"url", e.Request.URL.String(),
+		"user_agent", e.Request.Header.Get("User-Agent"),
+	)
+
 	var req localmodels.GenerateImageRequest
 	if err := json.NewDecoder(e.Request.Body).Decode(&req); err != nil {
+		h.app.Logger().Error("Failed to decode request body", "error", err)
 		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Invalid request body")
 	}
 

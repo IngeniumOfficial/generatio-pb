@@ -145,27 +145,49 @@ func (h *Handler) calculateRecentSpending(userID string, days int) (float64, err
 func RegisterRoutes(se *core.ServeEvent, app *pocketbase.PocketBase, sessionStore *auth.SessionStore, encService *crypto.EncryptionService, falClient fal.FALClient) {
 	handler := NewHandler(app, sessionStore, encService, falClient)
 
+	app.Logger().Info("🔧 Registering custom API routes...")
+
 	// Token management
 	se.Router.POST("/api/custom/tokens/setup", handler.TokenSetup)
 	se.Router.POST("/api/custom/tokens/verify", handler.TokenVerify)
+	app.Logger().Info("  ✓ Token management routes registered")
 
 	// Session management
 	se.Router.POST("/api/custom/auth/create-session", handler.CreateSession)
 	se.Router.DELETE("/api/custom/auth/session", handler.DeleteSession)
 	se.Router.GET("/api/custom/auth/token-status", handler.TokenStatus)
+	app.Logger().Info("  ✓ Session management routes registered")
 
 	// Image generation
 	se.Router.POST("/api/custom/generate/image", handler.GenerateImage)
 	se.Router.GET("/api/custom/generate/models", handler.GetModels)
+	app.Logger().Info("  ✓ Image generation routes registered")
+	app.Logger().Info("    - POST /api/custom/generate/image")
+	app.Logger().Info("    - GET /api/custom/generate/models")
 
 	// Financial tracking
 	se.Router.GET("/api/custom/financial/stats", handler.GetFinancialStats)
+	app.Logger().Info("  ✓ Financial tracking routes registered")
 
 	// User preferences
 	se.Router.POST("/api/custom/preferences/get", handler.GetPreferences)
 	se.Router.POST("/api/custom/preferences/save", handler.SavePreferences)
+	app.Logger().Info("  ✓ User preferences routes registered")
 
 	// Collections management
 	se.Router.POST("/api/custom/collections/create", handler.CreateCollection)
 	se.Router.GET("/api/custom/collections", handler.GetCollections)
+	app.Logger().Info("  ✓ Collections management routes registered")
+
+	// Add a simple test endpoint to verify custom routing works
+	se.Router.GET("/api/custom/test", func(e *core.RequestEvent) error {
+		app.Logger().Info("🧪 Test endpoint called successfully")
+		return e.JSON(200, map[string]string{
+			"status": "ok",
+			"message": "Custom routes are working correctly",
+		})
+	})
+	app.Logger().Info("  ✓ Test endpoint registered: GET /api/custom/test")
+
+	app.Logger().Info("✅ All custom routes registered successfully")
 }
