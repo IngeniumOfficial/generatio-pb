@@ -160,10 +160,9 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 	// TEMPORARY: We'll try to find the model ID from common models
 	// This should be fixed by storing model ID with the request
 	modelID := "flux/schnell" // Default for now
-	falModelID := convertToFALModelID(modelID)
 	
 	// Official FAL queue status endpoint format
-	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, falModelID, requestID)
+	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, modelID, requestID)
 
 	fmt.Printf("🔍 FAL Status Check Debug:\n")
 	fmt.Printf("  URL: %s\n", url)
@@ -221,22 +220,19 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 
 // CheckStatusWithModel checks the status of a generation request with model ID
 func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, requestID string) (*StatusResponse, error) {
-	// If model ID already has fal-ai prefix, use as-is; otherwise convert
-	falModelID := modelID
-	if len(modelID) <= 7 || modelID[:7] != "fal-ai/" {
-		falModelID = convertToFALModelID(modelID)
-	}
-	
 	// Official FAL queue status endpoint format
-	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, falModelID, requestID)
+	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, modelID, requestID)
 
 	fmt.Printf("🔍 FAL Status Check Debug (With Model):\n")
-	fmt.Printf("  URL: %s\n", url)
-	fmt.Printf("  Method: GET\n")
-	fmt.Printf("  Input Model ID: %s\n", modelID)
-	fmt.Printf("  Final FAL Model ID: %s\n", falModelID)
-	fmt.Printf("  Request ID: %s\n", requestID)
 	fmt.Printf("  Base URL: %s\n", c.baseURL)
+	fmt.Printf("  Model ID: %s\n", modelID)
+	fmt.Printf("  Request ID: %s\n", requestID)
+	fmt.Printf("  Full URL: %s\n", url)
+	fmt.Printf("  Method: GET\n")
+	fmt.Printf("  Token length: %d\n", len(token))
+	
+	// Let's also check if the request ID looks valid
+	fmt.Printf("  Request ID format check: len=%d, contains-dash=%t\n", len(requestID), len(requestID) > 0 && requestID[8] == '-')
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -290,7 +286,7 @@ func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, reque
 // PollForCompletion polls for completion of a generation request (legacy interface method)
 func (c *Client) PollForCompletion(ctx context.Context, token, requestID string) (*GenerationResponse, error) {
 	// Use default model ID for backward compatibility
-	return c.PollForCompletionWithModel(ctx, token, "fal-ai/flux/schnell", requestID)
+	return c.PollForCompletionWithModel(ctx, token, "flux/schnell", requestID)
 }
 
 // PollForCompletionWithModel polls for completion of a generation request with model ID
@@ -388,10 +384,9 @@ func (c *Client) GenerateImage(ctx context.Context, token string, req Generation
 func (c *Client) CancelGeneration(ctx context.Context, token, requestID string) error {
 	// Extract model ID (same issue as status check)
 	modelID := "flux/schnell" // Default for now
-	falModelID := convertToFALModelID(modelID)
 	
 	// Official FAL queue cancel endpoint with correct method (PUT)
-	url := fmt.Sprintf("%s/%s/requests/%s/cancel", c.baseURL, falModelID, requestID)
+	url := fmt.Sprintf("%s/%s/requests/%s/cancel", c.baseURL, modelID, requestID)
 
 	// Create HTTP request with PUT method (not POST)
 	httpReq, err := http.NewRequestWithContext(ctx, "PUT", url, nil)
