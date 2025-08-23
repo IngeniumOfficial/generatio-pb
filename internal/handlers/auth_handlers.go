@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"log"
@@ -206,111 +205,6 @@ func (h *Handler) DeleteSession(e *core.RequestEvent) error {
 		"success": true,
 		"message": "Session deleted successfully",
 	})
-}
-
-// CustomLogin handles POST /api/custom/auth/login with auto-session creation
-func (h *Handler) CustomLogin(e *core.RequestEvent) error {
-	var req localmodels.CustomLoginRequest
-	if err := json.NewDecoder(e.Request.Body).Decode(&req); err != nil {
-		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Invalid request body")
-	}
-
-	if req.Email == "" || req.Password == "" {
-		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Email and password are required")
-	}
-
-	log.Printf("CustomLogin: Attempting login for %s", req.Email)
-
-	// Call PocketBase's standard auth endpoint first
-	authBody := map[string]string{
-		"identity": req.Email,
-		"password": req.Password,
-	}
-	authData, _ := json.Marshal(authBody)
-
-	// Create internal request to PocketBase auth endpoint
-	authReq, _ := http.NewRequest("POST", "/api/collections/generatio_users/auth-with-password", bytes.NewBuffer(authData))
-	authReq.Header.Set("Content-Type", "application/json")
-
-	// Get the generatio_users collection
-	collection, err := h.app.FindCollectionByNameOrId("generatio_users")
-	if err != nil {
-		log.Printf("CustomLogin: Failed to find generatio_users collection: %v", err)
-		return h.errorResponse(e, http.StatusInternalServerError, localmodels.ErrCodeInternal, "Authentication system unavailable")
-	}
-
-	// Find and verify user manually
-	user, err := h.app.FindFirstRecordByFilter(collection, "email = {:email}", map[string]any{
-		"email": req.Email,
-	})
-	if err != nil {
-		log.Printf("CustomLogin: User not found: %v", err)
-		return h.errorResponse(e, http.StatusUnauthorized, localmodels.ErrCodeAuth, "Invalid credentials")
-	}
-
-	// Verify password
-	if !user.ValidatePassword(req.Password) {
-		log.Printf("CustomLogin: Invalid password for user %s", user.Id)
-		return h.errorResponse(e, http.StatusUnauthorized, localmodels.ErrCodeAuth, "Invalid credentials")
-	}
-
-	log.Printf("CustomLogin: Password verified for user %s", user.Id)
-
-	// Try to auto-create session if FAL token exists
-	var sessionID string
-	var message string
-	combinedToken := user.GetString("fal_token")
-	
-	if combinedToken != "" {
-		// Parse encrypted data and salt from combined token (format: "encrypted.salt")
-		parts := strings.Split(combinedToken, ".")
-		if len(parts) == 2 {
-			falTokenEncrypted := parts[0]
-			salt := parts[1]
-
-			// Try to decrypt the token using login password
-			decryptedToken, err := h.encService.Decrypt(falTokenEncrypted, salt, req.Password)
-			if err != nil {
-				log.Printf("CustomLogin: Failed to decrypt FAL token for user %s: %v", user.Id, err)
-				message = "Login successful. FAL token found but password doesn't match - please call create-session manually"
-			} else {
-				// Remove any existing sessions for this user
-				h.sessionStore.DeleteUserSessions(user.Id)
-
-				// Create new session with decrypted token
-				sessionID, err = h.sessionStore.Create(user.Id, decryptedToken)
-				if err != nil {
-					log.Printf("CustomLogin: Failed to create session for user %s: %v", user.Id, err)
-					message = "Login successful. Failed to auto-create session - please call create-session manually"
-				} else {
-					log.Printf("CustomLogin: ✓ Auto-created session %s for user %s", sessionID, user.Id)
-					message = "Login successful with auto-created session"
-				}
-			}
-		} else {
-			log.Printf("CustomLogin: Invalid token format for user %s", user.Id)
-			message = "Login successful. Invalid FAL token format - please setup token again"
-		}
-	} else {
-		message = "Login successful. No FAL token configured - setup required"
-	}
-
-	// For now, return a simplified response without PocketBase token
-	// Users can still use standard PocketBase auth endpoints for the token
-	userRecord := map[string]interface{}{
-		"id":    user.Id,
-		"email": user.GetString("email"),
-	}
-
-	resp := localmodels.CustomLoginResponse{
-		Token:     "", // Users should use standard auth endpoint for this
-		Record:    userRecord,
-		SessionID: sessionID,
-		Message:   message,
-	}
-
-	log.Printf("CustomLogin: ✓ Login complete for user %s", user.Id)
-	return e.JSON(http.StatusOK, resp)
 }
 
 // TokenStatus handles GET /api/custom/auth/token-status

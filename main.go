@@ -38,9 +38,9 @@ func main() {
 	cleanupService := auth.NewCleanupService(sessionStore, 1*time.Hour)
 	log.Println("✓ Cleanup service initialized")
 
-	// Note: Auto-session creation will be handled via custom login endpoint
-	// PocketBase event hooks don't provide reliable access to raw password
-	log.Println("✓ Auto-session setup will be handled via custom login endpoint")
+	// Note: Session management uses standard PocketBase auth + token-status check
+	// Clients can use token-status endpoint to determine if session creation is needed
+	log.Println("✓ Session management configured with token-status endpoint")
 
 	// Setup on serve
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
@@ -74,7 +74,6 @@ func main() {
 		log.Println("   POST /api/custom/tokens/verify")
 		log.Println("   POST /api/custom/auth/create-session")
 		log.Println("   DELETE /api/custom/auth/session")
-		log.Println("   POST /api/custom/auth/login (with auto-session creation)")
 		log.Println("   GET /api/custom/auth/token-status")
 		log.Println("   POST /api/custom/generate/image")
 		log.Println("   GET /api/custom/generate/models")
@@ -85,11 +84,11 @@ func main() {
 		log.Println("   GET /api/custom/collections")
 		log.Println("   (Note: Status endpoint removed to avoid conflicts)")
 		log.Println("")
-		log.Println("🔄 Auto-Session Creation:")
-		log.Println("   ✓ Custom login endpoint auto-creates sessions when FAL tokens exist")
-		log.Println("   ✓ Eliminates need to manually call create-session after login")
-		log.Println("   ✓ Seamless experience after server restarts")
-		log.Println("   ✓ Falls back gracefully if token decryption fails")
+		log.Println("🔄 Session Management:")
+		log.Println("   ✓ Use standard PocketBase auth endpoints for authentication")
+		log.Println("   ✓ Check token-status endpoint to determine session needs")
+		log.Println("   ✓ Manual session creation via create-session endpoint")
+		log.Println("   ✓ Secure separation of auth and session management")
 		log.Println("")
 
 		// Register production API routes

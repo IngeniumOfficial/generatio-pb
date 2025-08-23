@@ -197,46 +197,7 @@ Verify stored token accessibility.
 
 ### Session Management
 
-#### `POST /api/custom/auth/login` (Recommended)
-
-Custom login endpoint that authenticates users and automatically creates sessions when FAL tokens exist.
-
-**Request:**
-
-```json
-{
-  "email": "user@example.com",
-  "password": "user-password"
-}
-```
-
-**Response:**
-
-```json
-{
-  "token": "",
-  "record": {
-    "id": "user-id",
-    "email": "user@example.com"
-  },
-  "session_id": "uuid-session-id",
-  "message": "Login successful with auto-created session"
-}
-```
-
-**Auto-Session Creation:**
-
-- If user has stored FAL token and password matches encryption password, session is automatically created
-- Eliminates need for separate `/create-session` call after login
-- Provides seamless experience after server restarts
-- Falls back gracefully with informative messages if token decryption fails
-
-**Possible Response Messages:**
-
-- `"Login successful with auto-created session"` - Session created successfully
-- `"Login successful. FAL token found but password doesn't match - please call create-session manually"` - Token exists but wrong encryption password
-- `"Login successful. No FAL token configured - setup required"` - No token stored yet
-- `"Login successful. Invalid FAL token format - please setup token again"` - Token format corrupted
+**Recommended Flow:** Use standard PocketBase authentication combined with the [`/api/custom/auth/token-status`](README.md:283) endpoint for intelligent session management.
 
 #### `POST /api/custom/auth/create-session`
 
@@ -544,28 +505,64 @@ List user folders/collections.
 
 ## User Experience Improvements
 
-### Automatic Session Management
+### Smart Session Management
 
-The custom login endpoint (`/api/custom/auth/login`) provides a superior user experience by:
+The [`token-status`](README.md:283) endpoint enables intelligent client-side session management:
 
-1. **Eliminating Manual Steps**: No need to call separate endpoints after login
-2. **Server Restart Recovery**: Sessions automatically recreated when users return
-3. **Graceful Degradation**: Clear error messages when token issues occur
-4. **Password Validation**: Ensures stored token can be decrypted before creating session
+1. **Server Restart Recovery**: Check session state and recreate when needed
+2. **Smart UI Flow**: Determine appropriate user prompts (login vs token setup)
+3. **Session Validation**: Verify authentication status before API calls
+4. **Graceful Degradation**: Handle various user states with clear guidance
 
 ### Recommended Workflow
 
 **For new users:**
 
-1. Register via standard PocketBase auth
-2. Call `/api/custom/tokens/setup` to store encrypted FAL token
-3. Use `/api/custom/auth/login` for subsequent logins (auto-creates sessions)
+1. Register via standard PocketBase auth (`/api/collections/generatio_users/auth-with-password`)
+2. Call [`/api/custom/tokens/setup`](README.md:151) to store encrypted FAL token
+3. Use standard PocketBase login + [`/api/custom/auth/token-status`](README.md:283) for session management
 
 **For existing users:**
 
-1. Use `/api/custom/auth/login` - sessions created automatically
-2. If decryption fails, user receives clear guidance
-3. No manual session management required
+1. Login via standard PocketBase auth (`/api/collections/generatio_users/auth-with-password`)
+2. Check [`/api/custom/auth/token-status`](README.md:283) to determine session state
+3. Call [`/api/custom/auth/create-session`](README.md:241) if session needed
+4. No complex session management logic required
+
+**Client Implementation Example:**
+
+```javascript
+// 1. Standard PocketBase authentication
+const authData = await pb
+  .collection("generatio_users")
+  .authWithPassword(email, password);
+
+// 2. Check token and session status
+const statusResponse = await fetch("/api/custom/auth/token-status", {
+  headers: { Authorization: `Bearer ${authData.token}` },
+});
+const status = await statusResponse.json();
+
+// 3. Handle different states
+if (!status.has_token) {
+  // Show token setup flow
+  showTokenSetup();
+} else if (status.requires_login) {
+  // Create session with user's encryption password
+  const sessionResponse = await fetch("/api/custom/auth/create-session", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authData.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ password: encryptionPassword }),
+  });
+  // Store session ID for subsequent API calls
+} else {
+  // User ready to generate images
+  proceedToApp();
+}
+```
 
 ## Supported AI Models
 
