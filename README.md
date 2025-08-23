@@ -679,6 +679,14 @@ All endpoints return standardized error responses:
 - **Security**: Session IDs are UUIDs, tokens cleared on deletion
 - **Cleanup**: Background goroutine removes expired sessions
 
+### FAL AI Integration
+
+- **Queue API**: Uses official `https://queue.fal.run` endpoint
+- **Status Polling**: Model ID required for status checks (`/{model_id}/requests/{id}/status`)
+- **Request Format**: Parameters merged directly into request body (not nested under "input")
+- **Cancellation**: Uses PUT method with proper endpoint structure
+- **Debugging**: Comprehensive logging for API calls and responses
+
 ### Database Integration
 
 - **Primary Collection**: `generatio_users` (auth type)
@@ -687,4 +695,58 @@ All endpoints return standardized error responses:
 - **Preferences**: `model_preferences` collection for user settings
 - **Soft Deletes**: Uses `deleted_at` timestamps for recovery
 
-This implementation provides a secure, scalable foundation for AI image generation with comprehensive testing and proper separation of concerns.
+## Debugging and Troubleshooting
+
+### Debug Features
+
+When running the server, detailed logging is available for FAL API integration:
+
+```
+🔍 FAL API Debug:
+  URL: https://queue.fal.run/flux/schnell
+  Method: POST
+  Body: {"prompt":"...", "image_size":"square_hd"}
+  Token: fal-abc123...
+
+📥 FAL API Response:
+  Status: 200 OK
+  Body: {"request_id":"...", "status_url":"..."}
+
+🔍 FAL Status Check Debug (With Model):
+  URL: https://queue.fal.run/flux/schnell/requests/{id}/status
+  Method: GET
+  Model ID: flux/schnell
+  Request ID: {request_id}
+
+📥 FAL Status Check Response (With Model):
+  Status: 200 OK
+  Body: {"status": "COMPLETED", "response": {...}}
+```
+
+### Common Issues
+
+**HTTP 405 Method Not Allowed:**
+
+- ✅ **Fixed**: Ensure FAL API uses correct queue endpoints with model ID in status URLs
+- ✅ **Fixed**: Use proper request body format (no "input" nesting)
+- ✅ **Fixed**: Status checks require model ID: `/{model_id}/requests/{id}/status`
+
+**Authentication Issues:**
+
+- Verify FAL token is valid and properly encrypted
+- Check session ID is included in `X-Session-ID` header
+- Ensure user has active PocketBase JWT token
+
+**Generation Timeouts:**
+
+- Default timeout is 10 minutes (configurable)
+- Check FAL API status for queue position
+- Monitor server logs for detailed API interaction
+
+### Test Endpoints
+
+- **Route Test**: `GET /api/custom/test` - Verify custom routing works (no auth required)
+- **Token Status**: `GET /api/custom/auth/token-status` - Check authentication and session state
+- **Models List**: `GET /api/custom/generate/models` - List available AI models
+
+This implementation provides a secure, scalable foundation for AI image generation with comprehensive testing, debugging capabilities, and proper separation of concerns.

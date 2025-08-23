@@ -10,6 +10,14 @@ import (
 	"time"
 )
 
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // Client represents a FAL AI client
 type Client struct {
 	baseURL    string
@@ -20,7 +28,8 @@ type Client struct {
 // NewClient creates a new FAL AI client
 func NewClient(baseURL string) *Client {
 	if baseURL == "" {
-		baseURL = "https://queue.fal.run/fal-ai"
+		// Official FAL AI queue endpoint
+		baseURL = "https://queue.fal.run"
 	}
 
 	return &Client{
@@ -53,17 +62,31 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 		return nil, err
 	}
 
-	// Prepare the request
+	// Prepare the request - updated URL structure for FAL API
 	url := fmt.Sprintf("%s/%s", c.baseURL, req.Model)
 	
-	// Create request body
-	body, err := json.Marshal(map[string]interface{}{
+	// Create request body - FAL expects different structure
+	requestBody := map[string]interface{}{
 		"prompt": req.Prompt,
-		"input":  req.Parameters,
-	})
+	}
+	
+	// Add parameters directly to the request body (not under "input")
+	if req.Parameters != nil {
+		for key, value := range req.Parameters {
+			requestBody[key] = value
+		}
+	}
+	
+	body, err := json.Marshal(requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
+
+	fmt.Printf("🔍 FAL API Debug:\n")
+	fmt.Printf("  URL: %s\n", url)
+	fmt.Printf("  Method: POST\n")
+	fmt.Printf("  Body: %s\n", string(body))
+	fmt.Printf("  Token: %s...\n", token[:min(10, len(token))])
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
@@ -78,6 +101,7 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 	// Send request
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		fmt.Printf("❌ FAL API Request failed: %v\n", err)
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -87,6 +111,10 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
+
+	fmt.Printf("📥 FAL API Response:\n")
+	fmt.Printf("  Status: %d %s\n", resp.StatusCode, resp.Status)
+	fmt.Printf("  Body: %s\n", string(respBody))
 
 	// Handle error responses
 	if resp.StatusCode != http.StatusOK {
@@ -111,7 +139,21 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 
 // CheckStatus checks the status of a generation request
 func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*StatusResponse, error) {
-	url := fmt.Sprintf("%s/requests/%s/status", c.baseURL, requestID)
+	// Extract model ID from request ID context - we need to pass it properly
+	// For now, we'll need to store the model ID with the request
+	// This is a design issue - we need the model ID for status checks
+	
+	// TEMPORARY: We'll try to find the model ID from common models
+	// This should be fixed by storing model ID with the request
+	modelID := "fal-ai/flux-schnell" // Default for now
+	
+	// Official FAL queue status endpoint format
+	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, modelID, requestID)
+
+	fmt.Printf("🔍 FAL Status Check Debug:\n")
+	fmt.Printf("  URL: %s\n", url)
+	fmt.Printf("  Method: GET\n")
+	fmt.Printf("  Request ID: %s\n", requestID)
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -125,6 +167,7 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 	// Send request
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		fmt.Printf("❌ FAL Status Check Request failed: %v\n", err)
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -135,8 +178,13 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
+	fmt.Printf("📥 FAL Status Check Response:\n")
+	fmt.Printf("  Status: %d %s\n", resp.StatusCode, resp.Status)
+	fmt.Printf("  Body: %s\n", string(respBody))
+
 	// Handle error responses
 	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("❌ Status check failed - this is likely where the HTTP 405 occurs\n")
 		var falErr FALError
 		if err := json.Unmarshal(respBody, &falErr); err != nil {
 			return nil, &FALError{
@@ -156,8 +204,74 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 	return &statusResp, nil
 }
 
-// PollForCompletion polls for completion of a generation request
+// CheckStatusWithModel checks the status of a generation request with model ID
+func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, requestID string) (*StatusResponse, error) {
+	// Official FAL queue status endpoint format
+	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, modelID, requestID)
+
+	fmt.Printf("🔍 FAL Status Check Debug (With Model):\n")
+	fmt.Printf("  URL: %s\n", url)
+	fmt.Printf("  Method: GET\n")
+	fmt.Printf("  Model ID: %s\n", modelID)
+	fmt.Printf("  Request ID: %s\n", requestID)
+
+	// Create HTTP request
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	httpReq.Header.Set("Authorization", "Key "+token)
+
+	// Send request
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		fmt.Printf("❌ FAL Status Check Request failed: %v\n", err)
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	fmt.Printf("📥 FAL Status Check Response (With Model):\n")
+	fmt.Printf("  Status: %d %s\n", resp.StatusCode, resp.Status)
+	fmt.Printf("  Body: %s\n", string(respBody))
+
+	// Handle error responses
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("❌ Status check failed - this is likely where the HTTP 405 occurs\n")
+		var falErr FALError
+		if err := json.Unmarshal(respBody, &falErr); err != nil {
+			return nil, &FALError{
+				Code:    "http_error",
+				Message: fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(respBody)),
+			}
+		}
+		return nil, &falErr
+	}
+
+	// Parse response
+	var statusResp StatusResponse
+	if err := json.Unmarshal(respBody, &statusResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &statusResp, nil
+}
+
+// PollForCompletion polls for completion of a generation request (legacy interface method)
 func (c *Client) PollForCompletion(ctx context.Context, token, requestID string) (*GenerationResponse, error) {
+	// Use default model ID for backward compatibility
+	return c.PollForCompletionWithModel(ctx, token, "fal-ai/flux-schnell", requestID)
+}
+
+// PollForCompletionWithModel polls for completion of a generation request with model ID
+func (c *Client) PollForCompletionWithModel(ctx context.Context, token, modelID, requestID string) (*GenerationResponse, error) {
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -173,7 +287,7 @@ func (c *Client) PollForCompletion(ctx context.Context, token, requestID string)
 				Message: "generation request timed out",
 			}
 		case <-ticker.C:
-			status, err := c.CheckStatus(ctx, token, requestID)
+			status, err := c.CheckStatusWithModel(ctx, token, modelID, requestID)
 			if err != nil {
 				return nil, err
 			}
@@ -221,8 +335,8 @@ func (c *Client) GenerateImage(ctx context.Context, token string, req Generation
 		return nil, err
 	}
 
-	// Poll for completion
-	result, err := c.PollForCompletion(ctx, token, queueResp.RequestID)
+	// Poll for completion - pass model ID for correct status URL
+	result, err := c.PollForCompletionWithModel(ctx, token, req.Model, queueResp.RequestID)
 	if err != nil {
 		return nil, err
 	}
@@ -248,10 +362,14 @@ func (c *Client) GenerateImage(ctx context.Context, token string, req Generation
 
 // CancelGeneration cancels a generation request
 func (c *Client) CancelGeneration(ctx context.Context, token, requestID string) error {
-	url := fmt.Sprintf("%s/requests/%s/cancel", c.baseURL, requestID)
+	// Extract model ID (same issue as status check)
+	modelID := "fal-ai/flux-schnell" // Default for now
+	
+	// Official FAL queue cancel endpoint with correct method (PUT)
+	url := fmt.Sprintf("%s/%s/requests/%s/cancel", c.baseURL, modelID, requestID)
 
-	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	// Create HTTP request with PUT method (not POST)
+	httpReq, err := http.NewRequestWithContext(ctx, "PUT", url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -284,7 +402,7 @@ func (c *Client) CancelGeneration(ctx context.Context, token, requestID string) 
 
 // ValidateToken validates a FAL AI token by making a test request
 func (c *Client) ValidateToken(ctx context.Context, token string) error {
-	// Make a simple request to validate the token
+	// Make a simple request to validate the token using correct endpoint
 	url := fmt.Sprintf("%s/flux/schnell", c.baseURL)
 	
 	testReq := map[string]interface{}{

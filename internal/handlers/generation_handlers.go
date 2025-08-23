@@ -30,11 +30,16 @@ func (h *Handler) GenerateImage(e *core.RequestEvent) error {
 		return h.errorResponse(e, http.StatusBadRequest, localmodels.ErrCodeValidation, "Model and prompt are required")
 	}
 
+	h.app.Logger().Info("✓ Request decoded successfully", "model", req.Model, "prompt_length", len(req.Prompt))
+
 	// Get authenticated user and session
 	user, session, err := h.getAuthenticatedUserAndSession(e)
 	if err != nil {
+		h.app.Logger().Error("Authentication failed", "error", err)
 		return h.errorResponse(e, http.StatusUnauthorized, localmodels.ErrCodeAuth, "Valid session required")
 	}
+
+	h.app.Logger().Info("✓ Authentication successful", "user_id", user.Id, "session_exists", session != nil)
 
 	// Create FAL generation request
 	falReq := fal.GenerationRequest{
@@ -43,6 +48,8 @@ func (h *Handler) GenerateImage(e *core.RequestEvent) error {
 		Parameters: req.Parameters,
 	}
 
+	h.app.Logger().Info("🚀 Starting FAL API call", "model", req.Model, "has_token", len(session.FALToken) > 0)
+
 	// Generate image
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
@@ -50,6 +57,7 @@ func (h *Handler) GenerateImage(e *core.RequestEvent) error {
 	startTime := time.Now()
 	result, err := h.falClient.GenerateImage(ctx, session.FALToken, falReq)
 	if err != nil {
+		h.app.Logger().Error("❌ FAL API call failed", "error", err, "duration", time.Since(startTime))
 		return h.errorResponse(e, http.StatusInternalServerError, localmodels.ErrCodeExternal, "Image generation failed: "+err.Error())
 	}
 	generationTime := time.Since(startTime)
