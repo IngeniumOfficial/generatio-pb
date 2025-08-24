@@ -234,6 +234,17 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	// Debug: Log the parsed response to understand the structure
+	fmt.Printf("FAL Status Response Debug (Legacy):\n")
+	fmt.Printf("  Status: %s\n", statusResp.Status)
+	fmt.Printf("  RequestID: %s\n", statusResp.RequestID)
+	fmt.Printf("  Result is nil: %t\n", statusResp.Result == nil)
+	if statusResp.Result != nil {
+		fmt.Printf("  Result.Status: %s\n", statusResp.Result.Status)
+		fmt.Printf("  Result.Images count: %d\n", len(statusResp.Result.Images))
+	}
+	fmt.Printf("  Raw response: %s\n", string(respBody))
+
 	return &statusResp, nil
 }
 
@@ -294,6 +305,17 @@ func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, reque
 	if err := json.Unmarshal(respBody, &statusResp); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
+
+	// Debug: Log the parsed response to understand the structure
+	fmt.Printf("FAL Status Response Debug:\n")
+	fmt.Printf("  Status: %s\n", statusResp.Status)
+	fmt.Printf("  RequestID: %s\n", statusResp.RequestID)
+	fmt.Printf("  Result is nil: %t\n", statusResp.Result == nil)
+	if statusResp.Result != nil {
+		fmt.Printf("  Result.Status: %s\n", statusResp.Result.Status)
+		fmt.Printf("  Result.Images count: %d\n", len(statusResp.Result.Images))
+	}
+	fmt.Printf("  Raw response: %s\n", string(respBody))
 
 	return &statusResp, nil
 }
