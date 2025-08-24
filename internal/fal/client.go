@@ -320,6 +320,73 @@ func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, reque
 	return &statusResp, nil
 }
 
+// GetResult retrieves the result of a completed generation request
+func (c *Client) GetResult(ctx context.Context, token, modelID, requestID string) (*GenerationResponse, error) {
+	// First convert to FAL format, then get base model ID for result retrieval
+	falModelID := convertToFALModelID(modelID)
+	baseModelID := getBaseModelID(falModelID)
+	
+	// FAL API result endpoint format (without /status)
+	url := fmt.Sprintf("%s/%s/requests/%s", c.baseURL, baseModelID, requestID)
+
+	// Log result retrieval request
+	fmt.Printf("FAL Get Result: %s (model: %s → %s, request: %s)\n", url, modelID, baseModelID, requestID)
+
+	// Create HTTP request
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	httpReq.Header.Set("Authorization", "Key "+token)
+
+	// Send request
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Log response status for errors
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("FAL Get Result Error: %d %s - %s\n", resp.StatusCode, resp.Status, string(respBody))
+	}
+
+	// Handle error responses
+	if resp.StatusCode != http.StatusOK {
+		var falErr FALError
+		if err := json.Unmarshal(respBody, &falErr); err != nil {
+			return nil, &FALError{
+				Code:    "http_error",
+				Message: fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(respBody)),
+			}
+		}
+		return nil, &falErr
+	}
+
+	// Parse response directly as GenerationResponse
+	var result GenerationResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse result response: %w", err)
+	}
+
+	// Debug: Log the parsed result
+	fmt.Printf("FAL Result Response Debug:\n")
+	fmt.Printf("  RequestID: %s\n", result.RequestID)
+	fmt.Printf("  Status: %s\n", result.Status)
+	fmt.Printf("  Images count: %d\n", len(result.Images))
+	fmt.Printf("  Raw response: %s\n", string(respBody))
+
+	return &result, nil
+}
+
 // PollForCompletion polls for completion of a generation request (legacy interface method)
 func (c *Client) PollForCompletion(ctx context.Context, token, requestID string) (*GenerationResponse, error) {
 	// Use default model ID for backward compatibility - use ORIGINAL model ID, not converted
@@ -353,13 +420,12 @@ func (c *Client) PollForCompletionWithModel(ctx context.Context, token, modelID,
 			
 			switch normalizedStatus {
 			case StatusCompleted:
-				if status.Result == nil {
-					return nil, &FALError{
-						Code:    "missing_result",
-						Message: "generation completed but no result provided",
-					}
+				// When status is completed, fetch the actual result from the result endpoint
+				result, err := c.GetResult(ctx, token, modelID, requestID)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get completed result: %w", err)
 				}
-				return status.Result, nil
+				return result, nil
 			case StatusFailed:
 				if status.Error != nil {
 					return nil, status.Error
