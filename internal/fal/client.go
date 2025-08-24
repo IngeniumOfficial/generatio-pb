@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -325,7 +326,10 @@ func (c *Client) PollForCompletionWithModel(ctx context.Context, token, modelID,
 				return nil, err
 			}
 
-			switch status.Status {
+			// Normalize status to lowercase for comparison
+			normalizedStatus := strings.ToLower(status.Status)
+			
+			switch normalizedStatus {
 			case StatusCompleted:
 				if status.Result == nil {
 					return nil, &FALError{
