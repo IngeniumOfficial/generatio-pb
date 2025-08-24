@@ -21,7 +21,7 @@ func min(a, b int) int {
 // convertToFALModelID converts our internal model ID to FAL API format
 func convertToFALModelID(modelID string) string {
 	// If the model ID already has the fal-ai prefix, return as-is
-	if len(modelID) > 7 && modelID[:7] == "fal-ai/" {
+	if len(modelID) >= 7 && modelID[:7] == "fal-ai/" {
 		return modelID
 	}
 	
@@ -118,13 +118,8 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	fmt.Printf("🔍 FAL API Debug:\n")
-	fmt.Printf("  URL: %s\n", url)
-	fmt.Printf("  Method: POST\n")
-	fmt.Printf("  Internal Model: %s\n", req.Model)
-	fmt.Printf("  FAL Model ID: %s\n", falModelID)
-	fmt.Printf("  Body: %s\n", string(body))
-	fmt.Printf("  Token: %s...\n", token[:min(10, len(token))])
+	// Log essential request info for debugging
+	fmt.Printf("FAL API Request: %s %s (model: %s)\n", "POST", url, req.Model)
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
@@ -139,7 +134,6 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 	// Send request
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		fmt.Printf("❌ FAL API Request failed: %v\n", err)
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -150,9 +144,10 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	fmt.Printf("📥 FAL API Response:\n")
-	fmt.Printf("  Status: %d %s\n", resp.StatusCode, resp.Status)
-	fmt.Printf("  Body: %s\n", string(respBody))
+	// Log response status
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("FAL API Error: %d %s - %s\n", resp.StatusCode, resp.Status, string(respBody))
+	}
 
 	// Handle error responses
 	if resp.StatusCode != http.StatusOK {
@@ -183,22 +178,15 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 	
 	// TEMPORARY: We'll try to find the model ID from common models
 	// This should be fixed by storing model ID with the request
-	modelID := "flux/schnell" // Default for now
-	baseModelID := getBaseModelID(convertToFALModelID(modelID))
+	modelID := "flux/schnell" // Default for now - use ORIGINAL model ID
+	falModelID := convertToFALModelID(modelID)
+	baseModelID := getBaseModelID(falModelID)
 	
 	// Official FAL queue status endpoint format
 	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, baseModelID, requestID)
 
-	fmt.Printf("🔍 FAL Status Check Debug (Legacy Method):\n")
-	fmt.Printf("  ==========================================\n")
-	fmt.Printf("  Base URL: %s\n", c.baseURL)
-	fmt.Printf("  Default Model ID: %s\n", modelID)
-	fmt.Printf("  Base Model ID: %s\n", baseModelID)
-	fmt.Printf("  Request ID: %s\n", requestID)
-	fmt.Printf("  Final Status URL: %s\n", url)
-	fmt.Printf("  Method: GET\n")
-	fmt.Printf("  Token: %s...\n", token[:min(10, len(token))])
-	fmt.Printf("  ==========================================\n")
+	// Log status check request
+	fmt.Printf("FAL Status Check: %s (model: %s, request: %s)\n", url, modelID, requestID)
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -212,7 +200,6 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 	// Send request
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		fmt.Printf("❌ FAL Status Check Request failed: %v\n", err)
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -223,13 +210,13 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	fmt.Printf("📥 FAL Status Check Response:\n")
-	fmt.Printf("  Status: %d %s\n", resp.StatusCode, resp.Status)
-	fmt.Printf("  Body: %s\n", string(respBody))
+	// Log response status for errors
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("FAL Status Check Error: %d %s - %s\n", resp.StatusCode, resp.Status, string(respBody))
+	}
 
 	// Handle error responses
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("❌ Status check failed - this is likely where the HTTP 405 occurs\n")
 		var falErr FALError
 		if err := json.Unmarshal(respBody, &falErr); err != nil {
 			return nil, &FALError{
@@ -251,30 +238,15 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 
 // CheckStatusWithModel checks the status of a generation request with model ID
 func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, requestID string) (*StatusResponse, error) {
-	// For status checks, use the base model ID (without subpath)
-	baseModelID := getBaseModelID(modelID)
+	// First convert to FAL format, then get base model ID for status checks
+	falModelID := convertToFALModelID(modelID)
+	baseModelID := getBaseModelID(falModelID)
 	
 	// Official FAL queue status endpoint format
 	url := fmt.Sprintf("%s/%s/requests/%s/status", c.baseURL, baseModelID, requestID)
 
-	fmt.Printf("🔍 FAL Status Check Debug (With Model):\n")
-	fmt.Printf("  ==========================================\n")
-	fmt.Printf("  Base URL: %s\n", c.baseURL)
-	fmt.Printf("  Input Model ID: %s\n", modelID)
-	fmt.Printf("  Base Model ID: %s\n", baseModelID)
-	fmt.Printf("  Request ID: %s\n", requestID)
-	fmt.Printf("  Final Status URL: %s\n", url)
-	fmt.Printf("  Method: GET\n")
-	fmt.Printf("  Token: %s...\n", token[:min(10, len(token))])
-	fmt.Printf("  Token length: %d\n", len(token))
-	fmt.Printf("  ==========================================\n")
-	
-	// Verify the base model ID conversion is working
-	fmt.Printf("🔧 Model ID Conversion Check:\n")
-	fmt.Printf("  Original: %s\n", modelID)
-	fmt.Printf("  Expected base for flux/schnell: fal-ai/flux\n")
-	fmt.Printf("  Actual base: %s\n", baseModelID)
-	fmt.Printf("  Conversion correct: %t\n", (modelID == "fal-ai/flux/schnell" && baseModelID == "fal-ai/flux"))
+	// Log status check request with model
+	fmt.Printf("FAL Status Check: %s (model: %s → %s, request: %s)\n", url, modelID, baseModelID, requestID)
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -299,13 +271,13 @@ func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, reque
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	fmt.Printf("📥 FAL Status Check Response (With Model):\n")
-	fmt.Printf("  Status: %d %s\n", resp.StatusCode, resp.Status)
-	fmt.Printf("  Body: %s\n", string(respBody))
+	// Log response status for errors
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("FAL Status Check Error: %d %s - %s\n", resp.StatusCode, resp.Status, string(respBody))
+	}
 
 	// Handle error responses
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("❌ Status check failed - this is likely where the HTTP 405 occurs\n")
 		var falErr FALError
 		if err := json.Unmarshal(respBody, &falErr); err != nil {
 			return nil, &FALError{
@@ -327,8 +299,8 @@ func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, reque
 
 // PollForCompletion polls for completion of a generation request (legacy interface method)
 func (c *Client) PollForCompletion(ctx context.Context, token, requestID string) (*GenerationResponse, error) {
-	// Use default model ID for backward compatibility
-	return c.PollForCompletionWithModel(ctx, token, "fal-ai/flux/schnell", requestID)
+	// Use default model ID for backward compatibility - use ORIGINAL model ID, not converted
+	return c.PollForCompletionWithModel(ctx, token, "flux/schnell", requestID)
 }
 
 // PollForCompletionWithModel polls for completion of a generation request with model ID
@@ -396,9 +368,8 @@ func (c *Client) GenerateImage(ctx context.Context, token string, req Generation
 		return nil, err
 	}
 
-	// Poll for completion - pass model ID for correct status URL (use FAL format)
-	falModelID := convertToFALModelID(req.Model)
-	result, err := c.PollForCompletionWithModel(ctx, token, falModelID, queueResp.RequestID)
+	// Poll for completion - pass the original model ID, let CheckStatusWithModel handle conversion
+	result, err := c.PollForCompletionWithModel(ctx, token, req.Model, queueResp.RequestID)
 	if err != nil {
 		return nil, err
 	}
@@ -425,8 +396,9 @@ func (c *Client) GenerateImage(ctx context.Context, token string, req Generation
 // CancelGeneration cancels a generation request
 func (c *Client) CancelGeneration(ctx context.Context, token, requestID string) error {
 	// Extract model ID (same issue as status check)
-	modelID := "flux/schnell" // Default for now
-	baseModelID := getBaseModelID(convertToFALModelID(modelID))
+	modelID := "flux/schnell" // Default for now - use ORIGINAL model ID
+	falModelID := convertToFALModelID(modelID)
+	baseModelID := getBaseModelID(falModelID)
 	
 	// Official FAL queue cancel endpoint with correct method (PUT)
 	url := fmt.Sprintf("%s/%s/requests/%s/cancel", c.baseURL, baseModelID, requestID)
@@ -466,7 +438,13 @@ func (c *Client) CancelGeneration(ctx context.Context, token, requestID string) 
 // ValidateToken validates a FAL AI token by making a test request
 func (c *Client) ValidateToken(ctx context.Context, token string) error {
 	// Make a simple request to validate the token using correct endpoint
-	url := fmt.Sprintf("%s/flux/schnell", c.baseURL)
+	// FIX: Use proper model ID conversion instead of hardcoded path
+	testModelID := "flux/schnell"
+	falModelID := convertToFALModelID(testModelID)
+	url := fmt.Sprintf("%s/%s", c.baseURL, falModelID)
+	
+	// Log token validation request
+	fmt.Printf("FAL Token Validation: %s\n", url)
 	
 	testReq := map[string]interface{}{
 		"prompt": "test",

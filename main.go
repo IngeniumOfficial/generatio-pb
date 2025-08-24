@@ -30,7 +30,7 @@ func main() {
 	log.Println("✓ Session store initialized")
 
 	// Create FAL AI client
-	falClient := fal.NewClient("https://queue.fal.run/fal-ai")
+	falClient := fal.NewClient("https://queue.fal.run")
 	falClient.SetTimeout(10 * time.Minute) // 10-minute generation timeout
 	log.Println("✓ FAL AI client initialized")
 
