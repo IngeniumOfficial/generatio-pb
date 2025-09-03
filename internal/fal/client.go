@@ -212,13 +212,13 @@ func (c *Client) CheckStatus(ctx context.Context, token, requestID string) (*Sta
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Log response status for errors
-	if resp.StatusCode != http.StatusOK {
+	// Log response status for actual errors (not 202 Accepted)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		fmt.Printf("FAL Status Check Error: %d %s - %s\n", resp.StatusCode, resp.Status, string(respBody))
 	}
 
-	// Handle error responses
-	if resp.StatusCode != http.StatusOK {
+	// Handle error responses - accept both 200 OK and 202 Accepted
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		var falErr FALError
 		if err := json.Unmarshal(respBody, &falErr); err != nil {
 			return nil, &FALError{
@@ -284,13 +284,13 @@ func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, reque
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Log response status for errors
-	if resp.StatusCode != http.StatusOK {
+	// Log response status for actual errors (not 202 Accepted)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		fmt.Printf("FAL Status Check Error: %d %s - %s\n", resp.StatusCode, resp.Status, string(respBody))
 	}
 
-	// Handle error responses
-	if resp.StatusCode != http.StatusOK {
+	// Handle error responses - accept both 200 OK and 202 Accepted
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		var falErr FALError
 		if err := json.Unmarshal(respBody, &falErr); err != nil {
 			return nil, &FALError{
@@ -355,13 +355,13 @@ func (c *Client) GetResult(ctx context.Context, token, modelID, requestID string
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Log response status for errors
-	if resp.StatusCode != http.StatusOK {
+	// Log response status for actual errors (not 202 Accepted)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		fmt.Printf("FAL Get Result Error: %d %s - %s\n", resp.StatusCode, resp.Status, string(respBody))
 	}
 
-	// Handle error responses
-	if resp.StatusCode != http.StatusOK {
+	// Handle error responses - accept both 200 OK and 202 Accepted
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		var falErr FALError
 		if err := json.Unmarshal(respBody, &falErr); err != nil {
 			return nil, &FALError{
@@ -512,8 +512,8 @@ func (c *Client) CancelGeneration(ctx context.Context, token, requestID string) 
 	}
 	defer resp.Body.Close()
 
-	// Handle error responses
-	if resp.StatusCode != http.StatusOK {
+	// Handle error responses - accept both 200 OK and 202 Accepted
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		respBody, _ := io.ReadAll(resp.Body)
 		var falErr FALError
 		if err := json.Unmarshal(respBody, &falErr); err != nil {
@@ -569,7 +569,7 @@ func (c *Client) ValidateToken(ctx context.Context, token string) error {
 	}
 	defer resp.Body.Close()
 
-	// Check response
+	// Check response - accept both 200 OK and 202 Accepted as valid
 	if resp.StatusCode == http.StatusUnauthorized {
 		return &FALError{
 			Code:    "invalid_token",
@@ -577,7 +577,7 @@ func (c *Client) ValidateToken(ctx context.Context, token string) error {
 		}
 	}
 
-	// Any other response (including success) means the token is valid
+	// Any other response (including success and 202 Accepted) means the token is valid
 	return nil
 }
 

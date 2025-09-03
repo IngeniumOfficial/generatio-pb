@@ -17,7 +17,7 @@ import (
 
 var (
 	// App version
-	version = "0.1.0"
+	version = "0.1.01"
 )
 
 func main() {
@@ -62,15 +62,16 @@ func main() {
 			log.Printf("  - %s", modelName)
 		}
 
-		log.Println("Launching Generatio Pocketbase Version " + version)
-
+		
 		// Serve static files from the provided public dir (if exists) - register BEFORE custom routes
 		se.Router.GET("/static/{path...}", apis.Static(os.DirFS("./pb_public"), false))
-
+		
 		// Register production API routes
 		handlers.RegisterRoutes(se, app, sessionStore, encService, falClient)
 		log.Println("✓ API routes registered")
-
+		
+		log.Println("Launching Generatio Pocketbase Version " + version)
+		
 		return se.Next()
 	})
 
