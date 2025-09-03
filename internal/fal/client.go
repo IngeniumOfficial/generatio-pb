@@ -102,18 +102,46 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 	// Prepare the request - updated URL structure for FAL API
 	falModelID := convertToFALModelID(req.Model)
 	url := fmt.Sprintf("%s/%s", c.baseURL, falModelID)
-	
+
+	// Log incoming parameters for debugging
+	fmt.Printf("🔍 FAL REQUEST PARAMETERS:\n")
+	fmt.Printf("  Model: %s → %s\n", req.Model, falModelID)
+	fmt.Printf("  Prompt: %s\n", req.Prompt)
+	fmt.Printf("  Original Parameters: %+v\n", req.Parameters)
+
+	// Get model info to show supported parameters
+	if modelInfo, exists := GetModel(req.Model); exists {
+		fmt.Printf("  Model Info: %s (%s)\n", modelInfo.DisplayName, modelInfo.Name)
+		fmt.Printf("  Supported Parameters:\n")
+		for paramName, paramDef := range modelInfo.Parameters {
+			fmt.Printf("    - %s (%s): default=%v, required=%v\n", paramName, paramDef.Type, paramDef.Default, paramDef.Required)
+		}
+	}
+
 	// Create request body - FAL expects different structure
 	requestBody := map[string]interface{}{
 		"prompt": req.Prompt,
 	}
-	
+
 	// Add parameters directly to the request body (not under "input")
 	if req.Parameters != nil {
+		fmt.Printf("  Processing Parameters:\n")
 		for key, value := range req.Parameters {
+			// Check if parameter is supported by the model
+			if modelInfo, exists := GetModel(req.Model); exists {
+				if paramDef, supported := modelInfo.Parameters[key]; supported {
+					fmt.Printf("    ✅ %s = %v (supported: %s)\n", key, value, paramDef.Type)
+				} else {
+					fmt.Printf("    ⚠️  %s = %v (NOT SUPPORTED by %s)\n", key, value, req.Model)
+				}
+			}
 			requestBody[key] = value
 		}
+	} else {
+		fmt.Printf("  No parameters provided\n")
 	}
+
+	fmt.Printf("  Final Request Body: %+v\n", requestBody)
 	
 	body, err := json.Marshal(requestBody)
 	if err != nil {
@@ -122,6 +150,7 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 
 	// Log essential request info for debugging
 	fmt.Printf("FAL API Request: %s %s (model: %s)\n", "POST", url, req.Model)
+	fmt.Printf("📤 JSON PAYLOAD TO FAL: %s\n", string(body))
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))

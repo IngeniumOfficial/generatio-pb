@@ -41,6 +41,14 @@ func (h *Handler) GenerateImage(e *core.RequestEvent) error {
 
 	h.app.Logger().Info("✓ Authentication successful", "user_id", user.Id, "session_exists", session != nil)
 
+	// Log incoming request parameters for debugging
+	h.app.Logger().Info("📝 CLIENT REQUEST PARAMETERS",
+		"model", req.Model,
+		"prompt_length", len(req.Prompt),
+		"parameters", req.Parameters,
+		"has_parameters", req.Parameters != nil,
+	)
+
 	// Create FAL generation request
 	falReq := fal.GenerationRequest{
 		Model:      req.Model,
@@ -48,7 +56,12 @@ func (h *Handler) GenerateImage(e *core.RequestEvent) error {
 		Parameters: req.Parameters,
 	}
 
-	h.app.Logger().Info("🚀 Starting FAL API call", "model", req.Model, "has_token", len(session.FALToken) > 0)
+	h.app.Logger().Info("🚀 Starting FAL API call",
+		"model", req.Model,
+		"fal_model", falReq.Model,
+		"has_token", len(session.FALToken) > 0,
+		"parameters_count", len(falReq.Parameters),
+	)
 
 	// Generate image
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
