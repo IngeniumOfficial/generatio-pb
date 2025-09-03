@@ -15,6 +15,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
+var (
+	// App version
+	version = "0.1.0"
+)
+
 func main() {
 	app := pocketbase.New()
 
@@ -57,45 +62,7 @@ func main() {
 			log.Printf("  - %s", modelName)
 		}
 
-		log.Println("✓ Generatio PocketBase extension ready")
-		log.Println("")
-		log.Println("📋 Required Schema:")
-		log.Println("1. Main collections expected:")
-		log.Println("   - generatio_users (auth collection)")
-		log.Println("   - images (for generated images)")
-		log.Println("   - folders (for collections/organization)")
-		log.Println("   - model_preferences (for user preferences)")
-		log.Println("2. generatio_users collection should have:")
-		log.Println("   - fal_token (text) - for encrypted FAL AI token")
-		log.Println("   - financial_data (json) - for spending tracking & salt storage")
-		log.Println("")
-		log.Println("🔧 API Endpoints will be available at:")
-		log.Println("   POST /api/custom/tokens/setup")
-		log.Println("   POST /api/custom/tokens/verify")
-		log.Println("   POST /api/custom/auth/create-session")
-		log.Println("   DELETE /api/custom/auth/session")
-		log.Println("   GET /api/custom/auth/token-status")
-		log.Println("   POST /api/custom/generate/image")
-		log.Println("   GET /api/custom/generate/models")
-		log.Println("   GET /api/custom/financial/stats")
-		log.Println("   POST /api/custom/preferences/get")
-		log.Println("   POST /api/custom/preferences/save")
-		log.Println("   POST /api/custom/collections/create")
-		log.Println("   GET /api/custom/collections")
-		log.Println("   (Note: Status endpoint removed to avoid conflicts)")
-		log.Println("")
-		log.Println("🔄 Session Management:")
-		log.Println("   ✓ Use standard PocketBase auth endpoints for authentication")
-		log.Println("   ✓ Check token-status endpoint to determine session needs")
-		log.Println("   ✓ Manual session creation via create-session endpoint")
-		log.Println("   ✓ Secure separation of auth and session management")
-		log.Println("")
-		log.Println("🔧 Route Debugging & Testing:")
-		log.Println("   ✓ Enhanced route registration logging enabled")
-		log.Println("   ✓ Test endpoint available: GET /api/custom/test")
-		log.Println("   ✓ Image generation endpoint debugging added")
-		log.Println("   ✓ Static file routing conflicts resolved")
-		log.Println("")
+		log.Println("Launching Generatio Pocketbase Version " + version)
 
 		// Serve static files from the provided public dir (if exists) - register BEFORE custom routes
 		se.Router.GET("/static/{path...}", apis.Static(os.DirFS("./pb_public"), false))
