@@ -146,13 +146,13 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Log response status
-	if resp.StatusCode != http.StatusOK {
+	// Log response status for actual errors (not 202 Accepted)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		fmt.Printf("FAL API Error: %d %s - %s\n", resp.StatusCode, resp.Status, string(respBody))
 	}
 
-	// Handle error responses
-	if resp.StatusCode != http.StatusOK {
+	// Handle error responses - accept both 200 OK and 202 Accepted
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		var falErr FALError
 		if err := json.Unmarshal(respBody, &falErr); err != nil {
 			return nil, &FALError{
