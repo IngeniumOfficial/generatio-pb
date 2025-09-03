@@ -124,18 +124,24 @@ func (c *Client) SubmitGeneration(ctx context.Context, token string, req Generat
 	}
 
 	// Add parameters directly to the request body (not under "input")
+	// Only include parameters that are supported by the model
 	if req.Parameters != nil {
 		fmt.Printf("  Processing Parameters:\n")
-		for key, value := range req.Parameters {
-			// Check if parameter is supported by the model
-			if modelInfo, exists := GetModel(req.Model); exists {
+		if modelInfo, exists := GetModel(req.Model); exists {
+			for key, value := range req.Parameters {
 				if paramDef, supported := modelInfo.Parameters[key]; supported {
 					fmt.Printf("    ✅ %s = %v (supported: %s)\n", key, value, paramDef.Type)
+					requestBody[key] = value
 				} else {
-					fmt.Printf("    ⚠️  %s = %v (NOT SUPPORTED by %s)\n", key, value, req.Model)
+					fmt.Printf("    ❌ %s = %v (FILTERED OUT - not supported by %s)\n", key, value, req.Model)
 				}
 			}
-			requestBody[key] = value
+		} else {
+			// If model info not found, include all parameters (fallback)
+			fmt.Printf("  ⚠️  Model info not found, including all parameters\n")
+			for key, value := range req.Parameters {
+				requestBody[key] = value
+			}
 		}
 	} else {
 		fmt.Printf("  No parameters provided\n")
