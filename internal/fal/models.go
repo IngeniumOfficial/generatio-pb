@@ -158,8 +158,8 @@ var SupportedModels = map[string]ModelInfo{
 			},
 		},
 	},
-	"hidream/hidream-i1-dev": {
-		Name:         "hidream/hidream-i1-dev",
+	"fal-ai/hidream-i1-dev": {
+		Name:         "fal-ai/hidream-i1-dev",
 		DisplayName:  "HiDream I1 Dev",
 		Description:  "High-quality image generation with HiDream model (development version)",
 		CostPerImage: 0.004,
@@ -220,8 +220,8 @@ var SupportedModels = map[string]ModelInfo{
 			},
 		},
 	},
-	"hidream/hidream-i1-fast": {
-		Name:         "hidream/hidream-i1-fast",
+	"fal-ai/hidream-i1-fast": {
+		Name:         "fal-ai/hidream-i1-fast",
 		DisplayName:  "HiDream I1 Fast",
 		Description:  "Fast image generation with HiDream model",
 		CostPerImage: 0.003,
