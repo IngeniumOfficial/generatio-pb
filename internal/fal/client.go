@@ -315,6 +315,10 @@ func (c *Client) CheckStatusWithModel(ctx context.Context, token, modelID, reque
 	if statusResp.Result != nil {
 		fmt.Printf("  Result.Status: %s\n", statusResp.Result.Status)
 		fmt.Printf("  Result.Images count: %d\n", len(statusResp.Result.Images))
+		fmt.Printf("  Result.RequestID: %s\n", statusResp.Result.RequestID)
+		fmt.Printf("  ⚠️  WARNING: Result is not nil when status is '%s'!\n", statusResp.Status)
+	} else {
+		fmt.Printf("  ✅ Result is correctly nil for status '%s'\n", statusResp.Status)
 	}
 	fmt.Printf("  Raw response: %s\n", string(respBody))
 
@@ -396,38 +400,55 @@ func (c *Client) PollForCompletion(ctx context.Context, token, requestID string)
 
 // PollForCompletionWithModel polls for completion of a generation request with model ID
 func (c *Client) PollForCompletionWithModel(ctx context.Context, token, modelID, requestID string) (*GenerationResponse, error) {
+	fmt.Printf("⏰ POLLING START: Model=%s, RequestID=%s, Timeout=%v\n", modelID, requestID, c.timeout)
+
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
+	startTime := time.Now()
 	ticker := time.NewTicker(2 * time.Second) // Poll every 2 seconds
 	defer ticker.Stop()
 
+	pollCount := 0
 	for {
 		select {
 		case <-ctx.Done():
+			duration := time.Since(startTime)
+			fmt.Printf("⏰ POLLING TIMEOUT: After %v (limit: %v)\n", duration, c.timeout)
 			return nil, &FALError{
 				Code:    "timeout",
 				Message: "generation request timed out",
 			}
 		case <-ticker.C:
+			pollCount++
+			fmt.Printf("🔄 POLLING #%d: Checking status for request %s (model: %s)\n", pollCount, requestID, modelID)
+
 			status, err := c.CheckStatusWithModel(ctx, token, modelID, requestID)
 			if err != nil {
+				fmt.Printf("❌ POLLING ERROR: Failed to check status: %v\n", err)
 				return nil, err
 			}
 
 			// Normalize status to lowercase for comparison
 			normalizedStatus := strings.ToLower(status.Status)
-			
+			fmt.Printf("📊 POLLING STATUS: Raw='%s', Normalized='%s'\n", status.Status, normalizedStatus)
+			fmt.Printf("🔍 POLLING DEBUG: status.Status type: %T, value: %q\n", status.Status, status.Status)
+			fmt.Printf("🔍 POLLING DEBUG: normalizedStatus type: %T, value: %q\n", normalizedStatus, normalizedStatus)
+
 			switch normalizedStatus {
 			case StatusCompleted:
+				fmt.Printf("✅ POLLING COMPLETE: Status is '%s', fetching result...\n", status.Status)
 				// When status is completed, fetch the actual result from the result endpoint
 				result, err := c.GetResult(ctx, token, modelID, requestID)
 				if err != nil {
+					fmt.Printf("❌ POLLING RESULT ERROR: Failed to get result: %v\n", err)
 					return nil, fmt.Errorf("failed to get completed result: %w", err)
 				}
+				fmt.Printf("✅ POLLING SUCCESS: Result retrieved with %d images after %d polls\n", len(result.Images), pollCount)
 				return result, nil
 			case StatusFailed:
+				fmt.Printf("❌ POLLING FAILED: Status is '%s' after %d polls\n", status.Status, pollCount)
 				if status.Error != nil {
 					return nil, status.Error
 				}
@@ -436,14 +457,22 @@ func (c *Client) PollForCompletionWithModel(ctx context.Context, token, modelID,
 					Message: "generation failed with unknown error",
 				}
 			case StatusCancelled:
+				fmt.Printf("❌ POLLING CANCELLED: Status is '%s' after %d polls\n", status.Status, pollCount)
 				return nil, &FALError{
 					Code:    "generation_cancelled",
 					Message: "generation was cancelled",
 				}
 			case StatusQueued, StatusProcessing:
+				fmt.Printf("⏳ POLLING CONTINUE #%d: Status is '%s', continuing to poll...\n", pollCount, status.Status)
 				// Continue polling
 				continue
+			case "in_progress":
+				fmt.Printf("⏳ POLLING CONTINUE #%d: Status is '%s' (HiDream format), continuing to poll...\n", pollCount, status.Status)
+				// Continue polling - HiDream models use "IN_PROGRESS" instead of "processing"
+				continue
 			default:
+				fmt.Printf("❓ POLLING UNKNOWN #%d: Unknown status '%s', expected: %s, %s, %s, %s, %s, %s\n",
+					pollCount, status.Status, StatusQueued, StatusProcessing, StatusCompleted, StatusFailed, StatusCancelled, "in_progress")
 				return nil, &FALError{
 					Code:    "unknown_status",
 					Message: "unknown generation status: " + status.Status,
