@@ -38,16 +38,24 @@ func getBaseModelID(fullModelID string) string {
 	if fullModelID == "flux/schnell" {
 		return "fal-ai/flux"
 	}
-	if fullModelID == "hidream/hidream-i1-dev" || fullModelID == "hidream/hidream-i1-fast" {
-		return "fal-ai/hidream"
+	// HiDream models don't have a separate base - use the full model ID
+	if fullModelID == "hidream/hidream-i1-dev" {
+		return "fal-ai/hidream/hidream-i1-dev"
+	}
+	if fullModelID == "hidream/hidream-i1-fast" {
+		return "fal-ai/hidream/hidream-i1-fast"
 	}
 	
 	// Handle already converted FAL model IDs
 	if fullModelID == "fal-ai/flux/schnell" {
 		return "fal-ai/flux"
 	}
-	if fullModelID == "fal-ai/hidream/hidream-i1-dev" || fullModelID == "fal-ai/hidream/hidream-i1-fast" {
-		return "fal-ai/hidream"
+	// HiDream models - return the full model ID (no base model concept)
+	if fullModelID == "fal-ai/hidream/hidream-i1-dev" {
+		return "fal-ai/hidream/hidream-i1-dev"
+	}
+	if fullModelID == "fal-ai/hidream/hidream-i1-fast" {
+		return "fal-ai/hidream/hidream-i1-fast"
 	}
 	
 	// For other models, return as-is (no subpath)
